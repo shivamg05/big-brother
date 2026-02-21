@@ -1,0 +1,23 @@
+[project]
+name = "big-brother"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "google-genai>=1.0.0",
+    "numpy>=2.0.0",
+    "opencv-python-headless>=4.10.0.84",
+    "python-dotenv>=1.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+big-brother = "big_brother.cli:main"

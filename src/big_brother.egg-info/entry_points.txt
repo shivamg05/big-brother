@@ -1,0 +1,2 @@
+[console_scripts]
+big-brother = big_brother.cli:main
