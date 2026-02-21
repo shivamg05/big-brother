@@ -193,7 +193,12 @@ def create_app(*, outputs_dir: Path, videos_dir: Path, nl_engine: GeminiNLQueryE
         store = MemoryStore(db_path=db_path)
         try:
             api = QueryAPI(store)
-            out = engine.ask(api=api, question=q, default_worker_id=worker_id)
+            try:
+                out = engine.ask(api=api, question=q, default_worker_id=worker_id)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            except Exception as exc:
+                raise HTTPException(status_code=500, detail=f"NL query failed: {exc}") from exc
             return JSONResponse(out)
         finally:
             store.close()
@@ -517,7 +522,13 @@ def _dashboard_html() -> str:
       askStatus.textContent = "Running natural-language query...";
       try {
         const res = await fetch(`/api/ask?${params.toString()}`);
-        const data = await res.json();
+        const raw = await res.text();
+        let data = null;
+        try {
+          data = JSON.parse(raw);
+        } catch (_e) {
+          data = { detail: raw };
+        }
         if (!res.ok) {
           askOutput.textContent = `Error: ${data.detail || "Request failed"}`;
           askStatus.textContent = "Query failed.";
