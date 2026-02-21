@@ -232,376 +232,535 @@ def _dashboard_html() -> str:
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Worker Memory Live Dashboard</title>
+  <title>Worker Memory Dashboard</title>
   <style>
     :root {
-      --bg-a: #f8f4e8;
-      --bg-b: #d6eadf;
-      --panel: #ffffffee;
-      --ink: #152022;
-      --muted: #4f6266;
-      --accent: #116466;
-      --bar: #2c7a7b;
+      --bg: #f8f5ef;
+      --surface: #fdfbf7;
+      --surface-2: #f4f0e8;
+      --text: #22201d;
+      --muted: #6f6961;
+      --border: #e5dfd5;
+      --accent: #486b5f;
+      --accent-soft: #e9f0ed;
+      --shadow: 0 6px 20px rgba(25, 20, 12, 0.06);
+      --radius: 14px;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      color: var(--ink);
-      background: radial-gradient(circle at 20% 20%, var(--bg-b), var(--bg-a));
-      font-family: "Avenir Next", "Trebuchet MS", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Inter", "Avenir Next", "Segoe UI", sans-serif;
+      line-height: 1.45;
     }
-    .shell { max-width: 1260px; margin: 0 auto; padding: 16px; }
-    .top {
-      display: grid; grid-template-columns: 260px 1fr; gap: 12px;
-      margin-bottom: 12px;
+    .container {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 28px 22px 40px;
     }
-    .panel {
-      background: var(--panel);
-      border: 1px solid #d8e0d6;
-      border-radius: 12px;
-      padding: 12px;
-      box-shadow: 0 4px 12px #00000010;
+    .title {
+      font-family: "Iowan Old Style", "Baskerville", "Times New Roman", serif;
+      font-size: clamp(32px, 4vw, 46px);
+      line-height: 1.15;
+      margin: 0;
+      letter-spacing: -0.02em;
+      font-weight: 500;
     }
-    h1 { margin: 0 0 8px; font-size: 20px; letter-spacing: 0.2px; }
-    .meta { color: var(--muted); font-size: 13px; }
-    .main {
-      display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px;
-      margin-bottom: 12px;
+    .subtitle {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 14px;
+      letter-spacing: 0.02em;
     }
-    .log {
-      max-height: 62vh; overflow-y: auto; display: grid; gap: 8px;
+    .grid-top {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
     }
-    .event-card {
-      border: 1px solid #d6e2dd;
-      border-radius: 10px;
-      overflow: hidden;
-      background: #fff;
+    .grid-main {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 14px;
     }
-    .event-head {
-      display: flex; justify-content: space-between; align-items: center;
-      background: #f2f7f5; padding: 8px 10px; font-size: 13px;
+    .stack {
+      margin-top: 14px;
+      display: grid;
+      gap: 14px;
     }
-    .event-body {
-      display: grid; grid-template-columns: 170px 1fr; gap: 10px; padding: 8px;
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px;
     }
-    .event-body img {
-      width: 170px; height: 100px; object-fit: cover; border-radius: 6px; border: 1px solid #d6e2dd;
-    }
-    .kv { font-size: 13px; color: var(--ink); line-height: 1.4; }
-    .small { font-size: 12px; color: var(--muted); }
-    .dist-grid {
-      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
-    }
-    .bar { display: grid; grid-template-columns: 1fr 70px; gap: 8px; margin: 5px 0; align-items: center; }
-    .bar-track { height: 9px; background: #e3ece8; border-radius: 999px; overflow: hidden; }
-    .bar-fill { height: 100%; background: var(--bar); }
-    select {
-      width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #c9d8d0; background: #fff;
-    }
-    .pill {
-      display: inline-block; background: #e9f2f0; color: var(--accent); padding: 2px 8px; border-radius: 999px;
-      font-size: 12px; margin-right: 4px;
-    }
-    .query-grid {
-      display: grid; grid-template-columns: 160px 120px 120px 140px 1fr auto; gap: 8px; margin-top: 8px;
-      align-items: center;
-    }
-    input, button {
-      width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #c9d8d0; background: #fff;
-      color: var(--ink);
-    }
-    button {
-      background: #1f7a7a; color: #fff; border: none; cursor: pointer;
+    .card h2 {
+      margin: 0;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
       font-weight: 600;
     }
-    pre {
-      margin: 8px 0 0; padding: 10px; border-radius: 8px; border: 1px solid #d6e2dd;
-      background: #f7fbfa; max-height: 220px; overflow: auto; font-size: 12px;
+    .meta {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 14px;
     }
-    .ask-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 10px; }
-    .toggle-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
-    .toggle-row input { width: auto; }
+    .select, .input, .btn, .btn-outline {
+      width: 100%;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #fff;
+      padding: 10px 14px;
+      color: var(--text);
+      font-size: 14px;
+      transition: all 140ms ease;
+      outline: none;
+    }
+    .select:focus, .input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(72, 107, 95, 0.15);
+    }
+    .btn {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+    .btn-outline {
+      background: #fff;
+      border-color: #ccc4b8;
+      cursor: pointer;
+    }
+    .btn:hover, .btn-outline:hover, .card:hover {
+      transform: translateY(-1px);
+    }
+    .log {
+      margin-top: 12px;
+      max-height: 62vh;
+      overflow: auto;
+      display: grid;
+      gap: 10px;
+    }
+    .item {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: border-color 140ms ease, box-shadow 140ms ease;
+    }
+    .item:hover { border-color: #d5cebf; }
+    .item-head {
+      background: var(--surface-2);
+      padding: 9px 11px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .item-body {
+      padding: 11px;
+      display: grid;
+      grid-template-columns: 170px 1fr;
+      gap: 10px;
+    }
+    .item-body img {
+      width: 170px;
+      height: 102px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      object-fit: cover;
+      background: #f3efe8;
+    }
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 9px;
+      border-radius: 999px;
+      border: 1px solid #d8d2c8;
+      background: #f7f3ea;
+      font-size: 12px;
+      color: #564f45;
+    }
+    .kv { font-size: 13px; color: #3e3a34; }
+    .small { font-size: 12px; color: var(--muted); }
+    .status-row {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      background: #c1b8a7;
+    }
+    .status-dot.live { background: #7d8f4f; }
+    .status-dot.done { background: #486b5f; }
+    .dist {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+    }
+    .bar-row { margin-bottom: 7px; }
+    .bar-line {
+      height: 7px;
+      border-radius: 999px;
+      background: #ece6dc;
+      overflow: hidden;
+      margin-top: 3px;
+    }
+    .bar-fill {
+      height: 100%;
+      background: var(--accent);
+    }
+    .query-grid {
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: 170px 120px 120px 120px 1fr auto;
+      gap: 8px;
+    }
+    .ask-row {
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+    }
+    pre {
+      margin: 10px 0 0;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #fcfaf6;
+      padding: 12px;
+      overflow: auto;
+      max-height: 220px;
+      color: #4e473f;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .skeleton {
+      height: 100px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: linear-gradient(90deg, #f6f2ea 25%, #f0ebdf 37%, #f6f2ea 63%);
+      background-size: 400% 100%;
+      animation: shimmer 1.3s ease infinite;
+    }
+    @keyframes shimmer {
+      0% { background-position: 100% 0; }
+      100% { background-position: 0 0; }
+    }
+    @media (max-width: 1024px) {
+      .grid-top, .grid-main { grid-template-columns: 1fr; }
+      .query-grid { grid-template-columns: 1fr 1fr; }
+      .item-body { grid-template-columns: 1fr; }
+      .item-body img { width: 100%; height: 180px; }
+      .dist { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
-  <div class="shell">
-    <div class="top">
-      <section class="panel">
-        <h1>Live Runs</h1>
-        <div class="small" style="margin-bottom:6px;">Auto-refresh every 2s</div>
-        <select id="runSelect"></select>
-      </section>
-      <section class="panel">
-        <h1 id="title">Worker Memory</h1>
-        <div id="summary" class="meta">Waiting for data...</div>
-      </section>
-    </div>
+  <div id="root"></div>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel">
+    const { useEffect, useMemo, useState } = React;
 
-    <div class="main">
-      <section class="panel">
-        <h1>Event Log + Frames</h1>
-        <div id="events" class="log"></div>
-      </section>
-      <section class="panel">
-        <h1>Labeled Episodes</h1>
-        <div id="episodes" class="log"></div>
-      </section>
-    </div>
-
-    <section class="panel">
-      <h1>State Distributions</h1>
-      <div class="dist-grid">
-        <div><div class="small">Phase</div><div id="distPhase"></div></div>
-        <div><div class="small">Action</div><div id="distAction"></div></div>
-        <div><div class="small">Tool</div><div id="distTool"></div></div>
-      </div>
-    </section>
-
-    <section class="panel">
-      <h1>Live Query</h1>
-      <div class="query-grid">
-        <select id="queryType">
-          <option value="events">events</option>
-          <option value="episodes">episodes</option>
-          <option value="tool-usage">tool-usage</option>
-          <option value="idle-ratio">idle-ratio</option>
-          <option value="search-time">search-time</option>
-        </select>
-        <input id="startTs" type="number" step="0.1" value="0" placeholder="start ts"/>
-        <input id="endTs" type="number" step="0.1" value="1000000000000" placeholder="end ts"/>
-        <input id="limit" type="number" step="1" value="50" placeholder="limit"/>
-        <input id="filterInput" type="text" placeholder="tool=nail_gun or label=framing_wall"/>
-        <button id="runQueryBtn">Run Query</button>
-      </div>
-      <pre id="queryOutput">Run a query to inspect persisted memory.db results.</pre>
-      <div class="ask-row">
-        <input id="askInput" type="text" placeholder="Ask naturally: 'How much time was nail_gun used between 120s and 300s?'" />
-        <button id="askBtn">Ask</button>
-      </div>
-      <div class="toggle-row">
-        <input id="showReasoning" type="checkbox" />
-        <label for="showReasoning" class="small">Show reasoning trace</label>
-      </div>
-      <div id="askStatus" class="small" style="margin-top:6px;"></div>
-      <pre id="askOutput">Natural-language answers will appear here.</pre>
-      <pre id="reasoningOutput" style="display:none;">Reasoning trace will appear here.</pre>
-    </section>
-  </div>
-
-  <script>
-    const runSelect = document.getElementById("runSelect");
-    let currentRun = null;
-    const queryType = document.getElementById("queryType");
-    const startTs = document.getElementById("startTs");
-    const endTs = document.getElementById("endTs");
-    const limit = document.getElementById("limit");
-    const filterInput = document.getElementById("filterInput");
-    const runQueryBtn = document.getElementById("runQueryBtn");
-    const queryOutput = document.getElementById("queryOutput");
-    const askInput = document.getElementById("askInput");
-    const askBtn = document.getElementById("askBtn");
-    const askOutput = document.getElementById("askOutput");
-    const askStatus = document.getElementById("askStatus");
-    const showReasoning = document.getElementById("showReasoning");
-    const reasoningOutput = document.getElementById("reasoningOutput");
-
-    async function fetchRuns() {
-      const res = await fetch("/api/runs");
-      const data = await res.json();
-      const runs = data.runs || [];
-      if (runs.length === 0) {
-        runSelect.innerHTML = "<option>No runs found</option>";
-        return;
-      }
-      const existing = new Set(Array.from(runSelect.options).map(o => o.value));
-      for (const run of runs) {
-        if (!existing.has(run)) {
-          const opt = document.createElement("option");
-          opt.value = run;
-          opt.textContent = run;
-          runSelect.appendChild(opt);
-        }
-      }
-      if (!currentRun || !runs.includes(currentRun)) {
-        currentRun = runs[runs.length - 1];
-        runSelect.value = currentRun;
-      }
+    function fmtTime(seconds) {
+      const total = Math.max(0, Math.floor(Number(seconds) || 0));
+      const h = Math.floor(total / 3600);
+      const m = Math.floor((total % 3600) / 60);
+      const s = total % 60;
+      const mm = String(m).padStart(2, "0");
+      const ss = String(s).padStart(2, "0");
+      return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
     }
 
-    function renderDistribution(containerId, dist) {
-      const root = document.getElementById(containerId);
+    function DistributionCard({ title, dist }) {
       const entries = Object.entries(dist || {});
       const total = entries.reduce((a, [,v]) => a + v, 0) || 1;
-      root.innerHTML = "";
-      for (const [name, count] of entries.slice(0, 8)) {
-        const pct = Math.round((count / total) * 100);
-        const row = document.createElement("div");
-        row.className = "bar";
-        row.innerHTML = `
-          <div>
-            <div class="small">${name}</div>
-            <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+      return (
+        <div>
+          <div className="small" style={{ textTransform: "uppercase", letterSpacing: "0.08em" }}>{title}</div>
+          <div style={{ marginTop: 8 }}>
+            {entries.slice(0, 8).map(([name, count]) => {
+              const pct = Math.round((count / total) * 100);
+              return (
+                <div className="bar-row" key={name}>
+                  <div className="small">{name} · {count} ({pct}%)</div>
+                  <div className="bar-line"><div className="bar-fill" style={{ width: `${pct}%` }} /></div>
+                </div>
+              );
+            })}
           </div>
-          <div class="small">${count} (${pct}%)</div>
-        `;
-        root.appendChild(row);
-      }
+        </div>
+      );
     }
 
-    function renderEvents(events) {
-      const root = document.getElementById("events");
-      root.innerHTML = "";
-      for (const e of events.slice().reverse()) {
-        const card = document.createElement("div");
-        card.className = "event-card";
-        card.innerHTML = `
-          <div class="event-head">
-            <div>
-              <span class="pill">${e.phase}</span>
-              <span class="pill">${e.action}</span>
-              <span class="pill">${e.tool}</span>
+    function EventCard({ e }) {
+      return (
+        <div className="item">
+          <div className="item-head">
+            <div className="chips">
+              <span className="chip">Phase: {e.phase}</span>
+              <span className="chip">Action: {e.action}</span>
+              <span className="chip">Tool: {e.tool}</span>
             </div>
-            <div class="small">${e.t_start.toFixed(1)}s -> ${e.t_end.toFixed(1)}s</div>
+            <div className="small">{fmtTime(e.t_start)} -> {fmtTime(e.t_end)}</div>
           </div>
-          <div class="event-body">
-            <img src="${e.frame_url}" loading="lazy" />
-            <div class="kv">
-              <div><b>Event</b>: ${e.event_id}</div>
-              <div><b>Confidence</b>: ${Number(e.confidence).toFixed(2)}</div>
-              <div><b>Evidence</b>: ${e.evidence || ""}</div>
+          <div className="item-body">
+            <img src={e.frame_url} loading="lazy" />
+            <div className="kv">
+              <div>{e.evidence || ""}</div>
             </div>
           </div>
-        `;
-        root.appendChild(card);
-      }
+        </div>
+      );
     }
 
-    function renderEpisodes(episodes) {
-      const root = document.getElementById("episodes");
-      root.innerHTML = "";
-      const items = episodes.slice().reverse();
-      for (const ep of items) {
-        const card = document.createElement("div");
-        card.className = "event-card";
-        card.innerHTML = `
-          <div class="event-head">
-            <div><span class="pill">${ep.kind || "episode"}</span> <b>${ep.label || "unknown"}</b></div>
-            <div class="small">${ep.t_start.toFixed(1)}s -> ${ep.t_end.toFixed(1)}s</div>
+    function EpisodeCard({ ep }) {
+      return (
+        <div className="item">
+          <div className="item-head">
+            <div style={{ fontWeight: 700, fontSize: 15 }}>{ep.label || "unknown"}</div>
+            <div className="small">{fmtTime(ep.t_start)} -> {fmtTime(ep.t_end)}</div>
           </div>
-          <div class="event-body" style="grid-template-columns:1fr;">
-            <div class="kv">
-              <div><b>Episode</b>: ${ep.episode_id}</div>
-              <div><b>Events</b>: ${(ep.event_ids || []).length}</div>
-              <div><b>Confidence</b>: ${Number(ep.confidence || 0).toFixed(2)} (${ep.label_source || "n/a"})</div>
-              <div><b>Reasoning</b>: ${ep.reasoning || ""}</div>
-            </div>
+          <div style={{ padding: 11 }} className="kv">
+            <div>{ep.reasoning || "No reasoning available."}</div>
           </div>
-        `;
-        root.appendChild(card);
+        </div>
+      );
+    }
+
+    function App() {
+      const [runs, setRuns] = useState([]);
+      const [run, setRun] = useState("");
+      const [snapshot, setSnapshot] = useState(null);
+      const [loadingSnapshot, setLoadingSnapshot] = useState(true);
+
+      const [queryType, setQueryType] = useState("events");
+      const [startTs, setStartTs] = useState("0");
+      const [endTs, setEndTs] = useState("1000000000000");
+      const [limit, setLimit] = useState("50");
+      const [filterInput, setFilterInput] = useState("");
+      const [queryOutput, setQueryOutput] = useState("Run a query to inspect persisted memory.db results.");
+
+      const [askInput, setAskInput] = useState("");
+      const [askOutput, setAskOutput] = useState("Natural-language answers will appear here.");
+      const [askStatus, setAskStatus] = useState("");
+      const [asking, setAsking] = useState(false);
+      const [showReasoning, setShowReasoning] = useState(false);
+      const [reasoningTrace, setReasoningTrace] = useState("");
+
+      useEffect(() => {
+        let alive = true;
+        async function tick() {
+          try {
+            const runsRes = await fetch("/api/runs");
+            const runsData = await runsRes.json();
+            if (!alive) return;
+            const nextRuns = runsData.runs || [];
+            setRuns((prev) => {
+              if (prev.length === nextRuns.length && prev.every((v, i) => v === nextRuns[i])) return prev;
+              return nextRuns;
+            });
+            if (!run && nextRuns.length > 0) setRun(nextRuns[nextRuns.length - 1]);
+          } catch (_e) {}
+        }
+        tick();
+        const id = setInterval(tick, 6000);
+        return () => { alive = false; clearInterval(id); };
+      }, [run]);
+
+      useEffect(() => {
+        let alive = true;
+        async function loadSnapshot(showLoading) {
+          if (!run) return;
+          if (showLoading) setLoadingSnapshot(true);
+          try {
+            const res = await fetch(`/api/snapshot?run=${encodeURIComponent(run)}&limit=80`);
+            if (!res.ok) return;
+            const data = await res.json();
+            if (!alive) return;
+            setSnapshot((prev) => {
+              if (!prev) return data;
+              const same =
+                prev.event_count === data.event_count &&
+                prev.episode_count === data.episode_count &&
+                prev.window_count === data.window_count &&
+                prev.run === data.run;
+              return same ? prev : data;
+            });
+          } finally {
+            if (alive && showLoading) setLoadingSnapshot(false);
+          }
+        }
+        loadSnapshot(true);
+        const id = setInterval(() => loadSnapshot(false), 5000);
+        return () => { alive = false; clearInterval(id); };
+      }, [run]);
+
+      async function runStructuredQuery() {
+        if (!run) return;
+        const params = new URLSearchParams();
+        params.set("run", run);
+        params.set("type", queryType);
+        params.set("start_ts", startTs || "0");
+        params.set("end_ts", endTs || "1000000000000");
+        params.set("limit", limit || "50");
+        const raw = (filterInput || "").trim();
+        if (raw.includes("=")) {
+          const [k, ...rest] = raw.split("=");
+          const v = rest.join("=").trim();
+          if (k.trim() === "tool" && v) params.set("tool", v);
+          if (k.trim() === "label" && v) params.set("label", v);
+        }
+        const res = await fetch(`/api/query?${params.toString()}`);
+        const data = await res.json();
+        setQueryOutput(JSON.stringify(data, null, 2));
       }
-    }
 
-    async function refreshSnapshot() {
-      if (!currentRun) return;
-      const res = await fetch(`/api/snapshot?run=${encodeURIComponent(currentRun)}&limit=80`);
-      if (!res.ok) return;
-      const data = await res.json();
-      document.getElementById("title").textContent = `Worker Memory: ${data.run}`;
-      document.getElementById("summary").textContent =
-        `events=${data.event_count} | episodes=${data.episode_count} | windows=${data.window_count}`;
-      renderEvents(data.events || []);
-      renderEpisodes(data.labeled_episodes || []);
-      renderDistribution("distPhase", data.distributions?.phase || {});
-      renderDistribution("distAction", data.distributions?.action || {});
-      renderDistribution("distTool", data.distributions?.tool || {});
-    }
-
-    async function runLiveQuery() {
-      if (!currentRun) return;
-      const params = new URLSearchParams();
-      params.set("run", currentRun);
-      params.set("type", queryType.value);
-      params.set("start_ts", startTs.value || "0");
-      params.set("end_ts", endTs.value || "1000000000000");
-      params.set("limit", limit.value || "50");
-
-      const raw = (filterInput.value || "").trim();
-      if (raw.includes("=")) {
-        const [k, ...rest] = raw.split("=");
-        const v = rest.join("=").trim();
-        if (k.trim() === "tool" && v) params.set("tool", v);
-        if (k.trim() === "label" && v) params.set("label", v);
-      }
-
-      const res = await fetch(`/api/query?${params.toString()}`);
-      const data = await res.json();
-      queryOutput.textContent = JSON.stringify(data, null, 2);
-    }
-
-    async function askNaturalLanguage() {
-      if (!currentRun) return;
-      const q = (askInput.value || "").trim();
-      if (!q) return;
-      const params = new URLSearchParams();
-      params.set("run", currentRun);
-      params.set("q", q);
-      askBtn.disabled = true;
-      askBtn.textContent = "Asking...";
-      askStatus.textContent = "Running natural-language query...";
-      try {
-        const res = await fetch(`/api/ask?${params.toString()}`);
-        const raw = await res.text();
-        let data = null;
+      async function runAsk() {
+        if (!run) return;
+        const q = (askInput || "").trim();
+        if (!q) return;
+        setAsking(true);
+        setAskStatus("Running natural-language query...");
         try {
-          data = JSON.parse(raw);
-        } catch (_e) {
-          data = { detail: raw };
+          const params = new URLSearchParams();
+          params.set("run", run);
+          params.set("q", q);
+          const res = await fetch(`/api/ask?${params.toString()}`);
+          const raw = await res.text();
+          let data = {};
+          try { data = JSON.parse(raw); } catch { data = { detail: raw }; }
+          if (!res.ok) {
+            setAskOutput(`Error: ${data.detail || "Request failed"}`);
+            setReasoningTrace("");
+            setAskStatus("Query failed.");
+            return;
+          }
+          setAskOutput(data.answer || "No answer generated.");
+          setReasoningTrace(data.reasoning_trace || "");
+          setAskStatus("Query completed.");
+        } catch (e) {
+          setAskOutput(`Error: ${e}`);
+          setReasoningTrace("");
+          setAskStatus("Query failed.");
+        } finally {
+          setAsking(false);
         }
-        if (!res.ok) {
-          askOutput.textContent = `Error: ${data.detail || "Request failed"}`;
-          askStatus.textContent = "Query failed.";
-          reasoningOutput.style.display = "none";
-          reasoningOutput.textContent = "";
-          return;
-        }
-        askOutput.textContent = data.answer || "No answer generated.";
-        if (showReasoning.checked && data.reasoning_trace) {
-          reasoningOutput.style.display = "block";
-          reasoningOutput.textContent = data.reasoning_trace;
-        } else {
-          reasoningOutput.style.display = "none";
-          reasoningOutput.textContent = "";
-        }
-        askStatus.textContent = "Query completed.";
-      } catch (err) {
-        askOutput.textContent = `Error: ${err}`;
-        askStatus.textContent = "Query failed.";
-        reasoningOutput.style.display = "none";
-        reasoningOutput.textContent = "";
-      } finally {
-        askBtn.disabled = false;
-        askBtn.textContent = "Ask";
       }
+
+      const events = useMemo(() => (snapshot?.events || []).slice().reverse(), [snapshot]);
+      const episodes = useMemo(() => (snapshot?.labeled_episodes || []).slice().reverse(), [snapshot]);
+      const isFinished = Boolean(snapshot?.summary && Object.keys(snapshot.summary).length > 0);
+      const statusText = !run
+        ? "No worker selected"
+        : (isFinished ? "Work finished" : "Currently working");
+      const statusClass = !run ? "" : (isFinished ? "done" : "live");
+
+      return (
+        <div className="container">
+          <h1 className="title">Worker Memory</h1>
+          <div className="subtitle">Real-time event memory, episode labels, and query interface.</div>
+
+          <div className="grid-top">
+            <section className="card">
+              <h2>Select Worker</h2>
+              <div style={{ marginTop: 12 }}>
+                <select className="select" value={run} onChange={(e) => setRun(e.target.value)}>
+                  {runs.length === 0 ? <option>No runs found</option> : runs.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              <div className="status-row">
+                <span className={`status-dot ${statusClass}`}></span>
+                <span>{statusText}</span>
+              </div>
+            </section>
+          </div>
+
+          <div className="grid-main">
+            <section className="card">
+              <h2>Event log</h2>
+              <div className="log">
+                {loadingSnapshot && <><div className="skeleton" /><div className="skeleton" /></>}
+                {!loadingSnapshot && events.map((e) => <EventCard key={e.event_id} e={e} />)}
+              </div>
+            </section>
+            <section className="card">
+              <h2>Episodes</h2>
+              <div className="log">
+                {loadingSnapshot && <><div className="skeleton" /><div className="skeleton" /></>}
+                {!loadingSnapshot && episodes.map((ep) => <EpisodeCard key={`${ep.episode_id}-${ep.kind || "k"}`} ep={ep} />)}
+              </div>
+            </section>
+          </div>
+
+          <div className="stack">
+            <section className="card">
+              <h2>State Distributions</h2>
+              <div className="dist">
+                <DistributionCard title="Phase" dist={snapshot?.distributions?.phase || {}} />
+                <DistributionCard title="Action" dist={snapshot?.distributions?.action || {}} />
+                <DistributionCard title="Tool" dist={snapshot?.distributions?.tool || {}} />
+              </div>
+            </section>
+
+            <section className="card">
+              <h2>Live Query</h2>
+              <div className="query-grid">
+                <select className="select" value={queryType} onChange={(e) => setQueryType(e.target.value)}>
+                  <option value="events">events</option>
+                  <option value="episodes">episodes</option>
+                  <option value="tool-usage">tool-usage</option>
+                  <option value="idle-ratio">idle-ratio</option>
+                  <option value="search-time">search-time</option>
+                </select>
+                <input className="input" value={startTs} onChange={(e) => setStartTs(e.target.value)} placeholder="start ts" />
+                <input className="input" value={endTs} onChange={(e) => setEndTs(e.target.value)} placeholder="end ts" />
+                <input className="input" value={limit} onChange={(e) => setLimit(e.target.value)} placeholder="limit" />
+                <input className="input" value={filterInput} onChange={(e) => setFilterInput(e.target.value)} placeholder="tool=nail_gun or label=framing_wall" />
+                <button className="btn-outline" onClick={runStructuredQuery}>Run Query</button>
+              </div>
+              <pre>{queryOutput}</pre>
+
+              <div className="ask-row">
+                <input className="input" value={askInput} onChange={(e) => setAskInput(e.target.value)} placeholder="Ask naturally..." />
+                <button className="btn" disabled={asking} onClick={runAsk}>{asking ? "Asking..." : "Ask"}</button>
+              </div>
+              <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
+                <input id="showReasoning" type="checkbox" checked={showReasoning} onChange={(e) => setShowReasoning(e.target.checked)} />
+                <label htmlFor="showReasoning" className="small">Show reasoning trace</label>
+              </div>
+              <div className="meta" style={{ marginTop: 8 }}>{askStatus}</div>
+              <pre>{askOutput}</pre>
+              {showReasoning && reasoningTrace ? <pre>{reasoningTrace}</pre> : null}
+            </section>
+          </div>
+        </div>
+      );
     }
 
-    runSelect.addEventListener("change", () => {
-      currentRun = runSelect.value;
-      refreshSnapshot();
-    });
-    runQueryBtn.addEventListener("click", runLiveQuery);
-    askBtn.addEventListener("click", askNaturalLanguage);
-    showReasoning.addEventListener("change", () => {
-      if (!showReasoning.checked) {
-        reasoningOutput.style.display = "none";
-      }
-    });
-
-    async function tick() {
-      await fetchRuns();
-      await refreshSnapshot();
-    }
-    tick();
-    setInterval(tick, 2000);
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
   </script>
 </body>
 </html>
