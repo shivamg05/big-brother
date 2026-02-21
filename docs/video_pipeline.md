@@ -40,6 +40,9 @@ uv run big-brother --videos-dir videos --video sample.mp4 --extractor gemini
 
 # Free-tier friendly rate limit (Gemini often limited to 5 RPM)
 uv run big-brother --videos-dir videos --video sample.mp4 --extractor gemini --requests-per-minute 4 --max-retries 8
+
+# Enable larger-action inference on closed episodes
+uv run big-brother --videos-dir videos --video sample.mp4 --extractor gemini --episode-labeler gemini
 ```
 
 ## Streaming + Saved Artifacts
@@ -54,3 +57,5 @@ Files are written incrementally to:
 - `outputs/<video_stem>/summary.json`
 
 Use `--no-stream` to disable live stdout streaming while still saving files.
+
+`episodes.jsonl` includes `kind:"labeled"` records when sequence-level episode labeling runs.

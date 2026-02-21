@@ -57,6 +57,8 @@ def analyze_video(
                 writer.write_episode(result.open_episode, kind="open")
             for closed in result.closed_episodes:
                 writer.write_episode(closed, kind="closed")
+            for labeled in result.labeled_episodes:
+                writer.write_episode(labeled, kind="labeled")
 
     final_episode = pipeline.finalize_current_episode()
     if writer is not None and final_episode is not None:

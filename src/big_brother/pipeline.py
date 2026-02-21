@@ -6,6 +6,7 @@ from typing import Any
 from .episode import EpisodeBoundaryConfig, EpisodeBuilder
 from .extractor import HeuristicExtractor, SubtaskExtractor
 from .gating import GatingConfig, GatingEngine
+from .labeler import EpisodeLabeler, HeuristicEpisodeLabeler
 from .query import QueryAPI
 from .schema import Episode, SubtaskEvent
 from .state import RollingState
@@ -39,6 +40,7 @@ class ProcessResult:
     extended_event_id: str | None = None
     open_episode: Episode | None = None
     closed_episodes: list[Episode] = field(default_factory=list)
+    labeled_episodes: list[Episode] = field(default_factory=list)
 
 
 class WorkerMemoryPipeline:
@@ -48,17 +50,20 @@ class WorkerMemoryPipeline:
         config: PipelineConfig | None = None,
         store: MemoryStore | None = None,
         extractor: SubtaskExtractor | None = None,
+        episode_labeler: EpisodeLabeler | None = None,
         gating_config: GatingConfig | None = None,
         episode_config: EpisodeBoundaryConfig | None = None,
     ) -> None:
         self.config = config or PipelineConfig()
         self.store = store or MemoryStore()
         self.extractor = extractor or HeuristicExtractor()
+        self.episode_labeler = episode_labeler or HeuristicEpisodeLabeler()
         self.gating = GatingEngine(gating_config)
         self.state = RollingState()
         self.episode_builder = EpisodeBuilder(episode_config)
         self.query = QueryAPI(self.store)
         self._last_event_id: str | None = None
+        self._event_cache: dict[str, SubtaskEvent] = {}
 
     def process_window_detailed(self, window: WindowInput) -> ProcessResult:
         decision = self.gating.decide(
@@ -86,12 +91,19 @@ class WorkerMemoryPipeline:
             source_window_id=window.window_id,
         )
         self.store.append_event(event)
+        self._event_cache[event.event_id] = event
+        if len(self._event_cache) > 1000:
+            oldest = next(iter(self._event_cache))
+            self._event_cache.pop(oldest, None)
         self.state.update(event)
         episode_update = self.episode_builder.update(event)
         if episode_update.open_episode:
             self.store.upsert_episode(episode_update.open_episode)
+        labeled: list[Episode] = []
         for closed in episode_update.closed:
+            closed = self._label_episode(closed)
             self.store.upsert_episode(closed)
+            labeled.append(closed)
         self._last_event_id = event.event_id
         return ProcessResult(
             window_id=window.window_id,
@@ -101,6 +113,7 @@ class WorkerMemoryPipeline:
             event=event,
             open_episode=episode_update.open_episode,
             closed_episodes=episode_update.closed,
+            labeled_episodes=labeled,
         )
 
     def process_window(self, window: WindowInput) -> SubtaskEvent | None:
@@ -109,8 +122,17 @@ class WorkerMemoryPipeline:
     def finalize_current_episode(self) -> Episode | None:
         maybe_closed = self.episode_builder.close_open_episode()
         if maybe_closed:
+            maybe_closed = self._label_episode(maybe_closed)
             self.store.upsert_episode(maybe_closed)
         return maybe_closed
+
+    def _label_episode(self, episode: Episode) -> Episode:
+        events: list[SubtaskEvent] = []
+        for event_id in episode.event_ids:
+            event = self._event_cache.get(event_id)
+            if event is not None:
+                events.append(event)
+        return self.episode_labeler.label_episode(episode, events)
 
     def close(self) -> None:
         self.finalize_current_episode()

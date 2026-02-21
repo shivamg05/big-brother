@@ -50,6 +50,10 @@ class MemoryStore:
                 zone_id TEXT NOT NULL,
                 label TEXT NOT NULL,
                 confidence REAL NOT NULL,
+                reasoning TEXT NOT NULL,
+                label_source TEXT NOT NULL,
+                label_version TEXT NOT NULL,
+                label_updated_at TEXT NOT NULL,
                 status TEXT NOT NULL,
                 created_at TEXT NOT NULL
             );
@@ -58,7 +62,21 @@ class MemoryStore:
             CREATE INDEX IF NOT EXISTS idx_episodes_status_t_end ON episodes(status, t_end);
             """
         )
+        self._ensure_episode_columns()
         self.conn.commit()
+
+    def _ensure_episode_columns(self) -> None:
+        rows = self.conn.execute("PRAGMA table_info(episodes)").fetchall()
+        existing = {row[1] for row in rows}
+        needed = {
+            "reasoning": "TEXT NOT NULL DEFAULT ''",
+            "label_source": "TEXT NOT NULL DEFAULT 'heuristic'",
+            "label_version": "TEXT NOT NULL DEFAULT 'v1'",
+            "label_updated_at": "TEXT NOT NULL DEFAULT ''",
+        }
+        for col, ddl in needed.items():
+            if col not in existing:
+                self.conn.execute(f"ALTER TABLE episodes ADD COLUMN {col} {ddl}")
 
     def append_event(self, event: SubtaskEvent) -> None:
         self.conn.execute(
@@ -93,8 +111,9 @@ class MemoryStore:
             """
             INSERT OR REPLACE INTO episodes (
                 episode_id, worker_id, t_start, t_end, event_ids, dominant_phase, tools_used,
-                zone_id, label, confidence, status, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                zone_id, label, confidence, reasoning, label_source, label_version, label_updated_at,
+                status, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 episode.episode_id,
@@ -107,6 +126,10 @@ class MemoryStore:
                 episode.zone_id,
                 episode.label,
                 episode.confidence,
+                episode.reasoning,
+                episode.label_source,
+                episode.label_version,
+                episode.label_updated_at,
                 episode.status,
                 episode.created_at,
             ),
@@ -197,4 +220,3 @@ class MemoryStore:
 
     def __exit__(self, *_: object) -> None:
         self.close()
-

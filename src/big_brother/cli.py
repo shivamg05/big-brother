@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 from .extractor import GeminiExtractor, HeuristicExtractor
+from .labeler import GeminiEpisodeLabeler, HeuristicEpisodeLabeler, NoopEpisodeLabeler
 from .pipeline import WorkerMemoryPipeline
 from .runner import analyze_video
 from .video import VideoIngestConfig
@@ -35,6 +36,12 @@ def main() -> int:
         help="Extractor backend.",
     )
     parser.add_argument(
+        "--episode-labeler",
+        choices=["gemini", "heuristic", "off"],
+        default="gemini",
+        help="Larger-action labeling backend for closed episodes.",
+    )
+    parser.add_argument(
         "--output-dir",
         default="outputs",
         help="Directory where streaming JSON memory artifacts are written.",
@@ -62,7 +69,18 @@ def main() -> int:
     else:
         extractor = HeuristicExtractor()
 
-    pipeline = WorkerMemoryPipeline(extractor=extractor)
+    if args.episode_labeler == "gemini":
+        episode_labeler = GeminiEpisodeLabeler(
+            model="gemini-2.5-flash",
+            requests_per_minute=args.requests_per_minute,
+            max_retries=args.max_retries,
+        )
+    elif args.episode_labeler == "heuristic":
+        episode_labeler = HeuristicEpisodeLabeler()
+    else:
+        episode_labeler = NoopEpisodeLabeler()
+
+    pipeline = WorkerMemoryPipeline(extractor=extractor, episode_labeler=episode_labeler)
     try:
         if args.video:
             paths = [videos_dir / args.video]

@@ -149,6 +149,10 @@ class Episode:
     zone_id: str
     label: str = "unknown"
     confidence: float = 0.0
+    reasoning: str = ""
+    label_source: str = "heuristic"
+    label_version: str = "v1"
+    label_updated_at: str = field(default_factory=utcnow_iso)
     status: str = "open"
     episode_id: str = field(default_factory=lambda: str(uuid4()))
     worker_id: str = "worker-1"

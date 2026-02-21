@@ -3,6 +3,7 @@
 from .episode import EpisodeBoundaryConfig, EpisodeBuilder
 from .extractor import GeminiExtractor, HeuristicExtractor
 from .gating import GateDecision, GatingConfig, GatingEngine
+from .labeler import GeminiEpisodeLabeler, HeuristicEpisodeLabeler, NoopEpisodeLabeler
 from .pipeline import PipelineConfig, WorkerMemoryPipeline
 from .runner import AnalysisSummary, analyze_video
 from .schema import Episode, SubtaskEvent
@@ -16,9 +17,12 @@ __all__ = [
     "AnalysisSummary",
     "GateDecision",
     "GeminiExtractor",
+    "GeminiEpisodeLabeler",
     "GatingConfig",
     "GatingEngine",
     "HeuristicExtractor",
+    "HeuristicEpisodeLabeler",
+    "NoopEpisodeLabeler",
     "MemoryStore",
     "PipelineConfig",
     "SubtaskEvent",
