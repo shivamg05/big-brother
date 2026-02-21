@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 
 from .query import QueryAPI
 from .query_cli import run_query
+from .schema import Tool
 
 TOOL_ALIASES = {
     "nail gun": "nail_gun",
@@ -226,7 +227,7 @@ class GeminiNLQueryEngine:
         if text in TOOL_ALIASES:
             return TOOL_ALIASES[text]
         text_u = text.replace(" ", "_")
-        known = {"nail_gun", "drill", "saw", "hammer", "tape_measure", "none", "unknown"}
+        known = {t.value for t in Tool}
         if text_u in known:
             return text_u
         return None

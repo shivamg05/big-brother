@@ -9,7 +9,7 @@ from typing import Any, Protocol
 
 from dotenv import load_dotenv
 
-from .schema import SubtaskEvent
+from .schema import Action, LocationHint, PeopleNearby, Phase, Speaking, SubtaskEvent, Tool
 
 
 class SubtaskExtractor(Protocol):
@@ -130,18 +130,24 @@ class GeminiExtractor:
             )
         frame_summary = json.dumps(safe_frames, separators=(",", ":"))
         state_summary = json.dumps(state, separators=(",", ":"))
+        phase_values = "|".join(self._enum_values(Phase))
+        action_values = "|".join(self._enum_values(Action))
+        tool_values = "|".join(self._enum_values(Tool))
+        people_values = "|".join(self._enum_values(PeopleNearby))
+        speaking_values = "|".join(self._enum_values(Speaking))
+        location_values = "|".join(self._enum_values(LocationHint))
         return f"""
 You are extracting one atomic worker event from a short video window.
 Return strictly one JSON object with only these keys:
 phase, action, tool, materials, people_nearby, speaking, location_hint, confidence, evidence
 
 Allowed enums:
-- phase: travel|search|setup|execute|inspect|communicate|idle|cleanup|unknown
-- action: carry|measure|cut|drill|nail|align|lift|fasten|inspect|walk|idle|other|unknown
-- tool: nail_gun|drill|saw|hammer|tape_measure|none|unknown
-- people_nearby: 0|1|2+|unknown
-- speaking: none|brief|sustained|unknown
-- location_hint: same_area|new_area|unknown
+- phase: {phase_values}
+- action: {action_values}
+- tool: {tool_values}
+- people_nearby: {people_values}
+- speaking: {speaking_values}
+- location_hint: {location_values}
 
 Rules:
 - The target actor is the camera wearer (POV worker), not other people in frame.
@@ -161,6 +167,10 @@ Window:
 - Images: attached as additional multimodal parts (ordered start->mid->end).
 - rolling_state: {state_summary}
 """.strip()
+
+    @staticmethod
+    def _enum_values(enum_type: Any) -> list[str]:
+        return [e.value for e in enum_type]
 
     def _enforce_pov_consistency(self, payload: dict[str, Any], *, state: dict[str, object]) -> dict[str, Any]:
         evidence = str(payload.get("evidence", "")).lower()
@@ -268,44 +278,20 @@ Window:
             "properties": {
                 "phase": {
                     "type": "string",
-                    "enum": [
-                        "travel",
-                        "search",
-                        "setup",
-                        "execute",
-                        "inspect",
-                        "communicate",
-                        "idle",
-                        "cleanup",
-                        "unknown",
-                    ],
+                    "enum": GeminiExtractor._enum_values(Phase),
                 },
                 "action": {
                     "type": "string",
-                    "enum": [
-                        "carry",
-                        "measure",
-                        "cut",
-                        "drill",
-                        "nail",
-                        "align",
-                        "lift",
-                        "fasten",
-                        "inspect",
-                        "walk",
-                        "idle",
-                        "other",
-                        "unknown",
-                    ],
+                    "enum": GeminiExtractor._enum_values(Action),
                 },
                 "tool": {
                     "type": "string",
-                    "enum": ["nail_gun", "drill", "saw", "hammer", "tape_measure", "none", "unknown"],
+                    "enum": GeminiExtractor._enum_values(Tool),
                 },
                 "materials": {"type": "array", "items": {"type": "string"}},
-                "people_nearby": {"type": "string", "enum": ["0", "1", "2+", "unknown"]},
-                "speaking": {"type": "string", "enum": ["none", "brief", "sustained", "unknown"]},
-                "location_hint": {"type": "string", "enum": ["same_area", "new_area", "unknown"]},
+                "people_nearby": {"type": "string", "enum": GeminiExtractor._enum_values(PeopleNearby)},
+                "speaking": {"type": "string", "enum": GeminiExtractor._enum_values(Speaking)},
+                "location_hint": {"type": "string", "enum": GeminiExtractor._enum_values(LocationHint)},
                 "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
                 "evidence": {"type": "string"},
             },
