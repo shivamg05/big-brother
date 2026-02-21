@@ -10,6 +10,10 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 import uvicorn
 
+from .query import QueryAPI
+from .query_cli import run_query
+from .storage import MemoryStore
+
 
 VIDEO_EXTENSIONS = [".mp4", ".mov", ".avi", ".mkv", ".m4v"]
 
@@ -136,6 +140,39 @@ def create_app(*, outputs_dir: Path, videos_dir: Path) -> FastAPI:
         image_bytes = _extract_frame_jpeg(video_path, t_seconds=t)
         return Response(content=image_bytes, media_type="image/jpeg")
 
+    @app.get("/api/query")
+    def query(
+        run: str = Query(...),
+        query_type: str = Query(..., alias="type"),
+        start_ts: float = Query(0.0),
+        end_ts: float = Query(1e12),
+        worker_id: str = Query("worker-1"),
+        tool: str | None = Query(None),
+        label: str | None = Query(None),
+        limit: int = Query(200, ge=1, le=1000),
+    ) -> JSONResponse:
+        db_path = outputs_dir / run / "memory.db"
+        if not db_path.exists():
+            raise HTTPException(status_code=404, detail=f"No memory DB found for run '{run}' at {db_path}")
+        store = MemoryStore(db_path=db_path)
+        try:
+            api = QueryAPI(store)
+            result = run_query(
+                api,
+                query_type=query_type,
+                start_ts=start_ts,
+                end_ts=end_ts,
+                worker_id=worker_id,
+                tool=tool,
+                label=label,
+                limit=limit,
+            )
+            return JSONResponse({"run": run, "query_type": query_type, "result": result})
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        finally:
+            store.close()
+
     return app
 
 
@@ -216,6 +253,22 @@ def _dashboard_html() -> str:
       display: inline-block; background: #e9f2f0; color: var(--accent); padding: 2px 8px; border-radius: 999px;
       font-size: 12px; margin-right: 4px;
     }
+    .query-grid {
+      display: grid; grid-template-columns: 160px 120px 120px 140px 1fr auto; gap: 8px; margin-top: 8px;
+      align-items: center;
+    }
+    input, button {
+      width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #c9d8d0; background: #fff;
+      color: var(--ink);
+    }
+    button {
+      background: #1f7a7a; color: #fff; border: none; cursor: pointer;
+      font-weight: 600;
+    }
+    pre {
+      margin: 8px 0 0; padding: 10px; border-radius: 8px; border: 1px solid #d6e2dd;
+      background: #f7fbfa; max-height: 220px; overflow: auto; font-size: 12px;
+    }
   </style>
 </head>
 <body>
@@ -251,11 +304,37 @@ def _dashboard_html() -> str:
         <div><div class="small">Tool</div><div id="distTool"></div></div>
       </div>
     </section>
+
+    <section class="panel">
+      <h1>Live Query</h1>
+      <div class="query-grid">
+        <select id="queryType">
+          <option value="events">events</option>
+          <option value="episodes">episodes</option>
+          <option value="tool-usage">tool-usage</option>
+          <option value="idle-ratio">idle-ratio</option>
+          <option value="search-time">search-time</option>
+        </select>
+        <input id="startTs" type="number" step="0.1" value="0" placeholder="start ts"/>
+        <input id="endTs" type="number" step="0.1" value="1000000000000" placeholder="end ts"/>
+        <input id="limit" type="number" step="1" value="50" placeholder="limit"/>
+        <input id="filterInput" type="text" placeholder="tool=nail_gun or label=framing_wall"/>
+        <button id="runQueryBtn">Run Query</button>
+      </div>
+      <pre id="queryOutput">Run a query to inspect persisted memory.db results.</pre>
+    </section>
   </div>
 
   <script>
     const runSelect = document.getElementById("runSelect");
     let currentRun = null;
+    const queryType = document.getElementById("queryType");
+    const startTs = document.getElementById("startTs");
+    const endTs = document.getElementById("endTs");
+    const limit = document.getElementById("limit");
+    const filterInput = document.getElementById("filterInput");
+    const runQueryBtn = document.getElementById("runQueryBtn");
+    const queryOutput = document.getElementById("queryOutput");
 
     async function fetchRuns() {
       const res = await fetch("/api/runs");
@@ -368,10 +447,33 @@ def _dashboard_html() -> str:
       renderDistribution("distTool", data.distributions?.tool || {});
     }
 
+    async function runLiveQuery() {
+      if (!currentRun) return;
+      const params = new URLSearchParams();
+      params.set("run", currentRun);
+      params.set("type", queryType.value);
+      params.set("start_ts", startTs.value || "0");
+      params.set("end_ts", endTs.value || "1000000000000");
+      params.set("limit", limit.value || "50");
+
+      const raw = (filterInput.value || "").trim();
+      if (raw.includes("=")) {
+        const [k, ...rest] = raw.split("=");
+        const v = rest.join("=").trim();
+        if (k.trim() === "tool" && v) params.set("tool", v);
+        if (k.trim() === "label" && v) params.set("label", v);
+      }
+
+      const res = await fetch(`/api/query?${params.toString()}`);
+      const data = await res.json();
+      queryOutput.textContent = JSON.stringify(data, null, 2);
+    }
+
     runSelect.addEventListener("change", () => {
       currentRun = runSelect.value;
       refreshSnapshot();
     });
+    runQueryBtn.addEventListener("click", runLiveQuery);
 
     async function tick() {
       await fetchRuns();
@@ -400,4 +502,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

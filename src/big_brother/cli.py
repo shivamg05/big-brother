@@ -7,6 +7,7 @@ from .extractor import GeminiExtractor, HeuristicExtractor
 from .labeler import GeminiEpisodeLabeler, HeuristicEpisodeLabeler, NoopEpisodeLabeler
 from .pipeline import WorkerMemoryPipeline
 from .runner import analyze_video
+from .storage import MemoryStore
 from .video import VideoIngestConfig
 
 
@@ -51,6 +52,11 @@ def main() -> int:
         action="store_true",
         help="Disable live stdout JSON streaming.",
     )
+    parser.add_argument(
+        "--db-path",
+        default=None,
+        help="Persistent SQLite DB path. If omitted, uses outputs/<video_stem>/memory.db.",
+    )
     args = parser.parse_args()
 
     videos_dir = Path(args.videos_dir)
@@ -80,20 +86,30 @@ def main() -> int:
     else:
         episode_labeler = NoopEpisodeLabeler()
 
-    pipeline = WorkerMemoryPipeline(extractor=extractor, episode_labeler=episode_labeler)
-    try:
-        if args.video:
-            paths = [videos_dir / args.video]
+    if args.video:
+        paths = [videos_dir / args.video]
+    else:
+        paths = sorted(
+            p for p in videos_dir.glob("*") if p.suffix.lower() in {".mp4", ".mov", ".avi", ".mkv", ".m4v"}
+        )
+
+    if not paths:
+        print(f"No videos found in {videos_dir}")
+        return 1
+    if args.db_path and len(paths) > 1:
+        print("--db-path can only be used with a single --video run.")
+        return 1
+
+    for path in paths:
+        if args.db_path:
+            db_path = Path(args.db_path)
         else:
-            paths = sorted(
-                p for p in videos_dir.glob("*") if p.suffix.lower() in {".mp4", ".mov", ".avi", ".mkv", ".m4v"}
-            )
+            db_path = Path(args.output_dir) / path.stem / "memory.db"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
 
-        if not paths:
-            print(f"No videos found in {videos_dir}")
-            return 1
-
-        for path in paths:
+        store = MemoryStore(db_path=db_path)
+        pipeline = WorkerMemoryPipeline(extractor=extractor, episode_labeler=episode_labeler, store=store)
+        try:
             pipeline.config.video_id = path.stem
             summary = analyze_video(
                 path,
@@ -106,8 +122,9 @@ def main() -> int:
                 f"{path.name}: windows={summary.windows_processed}, "
                 f"events_created={summary.events_created}, events_extended={summary.events_extended}"
             )
-    finally:
-        pipeline.close()
+            print(f"{path.name}: db={db_path}")
+        finally:
+            pipeline.close()
     return 0
 
 

@@ -5,6 +5,8 @@ import numpy as np
 from fastapi.testclient import TestClient
 
 from big_brother.dashboard import create_app
+from big_brother.schema import SubtaskEvent
+from big_brother.storage import MemoryStore
 
 
 def _write_test_video(path: Path, *, width: int = 64, height: int = 48, fps: int = 10, seconds: int = 1) -> None:
@@ -43,6 +45,28 @@ def test_dashboard_snapshot_and_frame(tmp_path: Path) -> None:
     )
     (run_dir / "windows.jsonl").write_text('{"window_id":"w1"}\n', encoding="utf-8")
     _write_test_video(videos_dir / "t1.avi")
+    db = MemoryStore(db_path=run_dir / "memory.db")
+    db.append_event(
+        SubtaskEvent.from_model_output(
+            {
+                "phase": "execute",
+                "action": "nail",
+                "tool": "nail_gun",
+                "materials": ["wood"],
+                "people_nearby": "0",
+                "speaking": "none",
+                "location_hint": "same_area",
+                "confidence": 0.9,
+                "evidence": "db-test",
+            },
+            t_start=0.0,
+            t_end=2.0,
+            worker_id="worker-1",
+            video_id="t1",
+            source_window_id="w-db",
+        )
+    )
+    db.close()
 
     app = create_app(outputs_dir=outputs_dir, videos_dir=videos_dir)
     client = TestClient(app)
@@ -63,3 +87,16 @@ def test_dashboard_snapshot_and_frame(tmp_path: Path) -> None:
     assert frame.headers["content-type"] == "image/jpeg"
     assert len(frame.content) > 100
 
+    q_events = client.get("/api/query", params={"run": "t1", "type": "events", "start_ts": 0, "end_ts": 10})
+    assert q_events.status_code == 200
+    q_events_body = q_events.json()
+    assert q_events_body["query_type"] == "events"
+    assert len(q_events_body["result"]) >= 1
+
+    q_metric = client.get(
+        "/api/query",
+        params={"run": "t1", "type": "tool-usage", "tool": "nail_gun", "start_ts": 0, "end_ts": 10},
+    )
+    assert q_metric.status_code == 200
+    q_metric_body = q_metric.json()
+    assert q_metric_body["result"]["tool_usage_seconds"] >= 2.0

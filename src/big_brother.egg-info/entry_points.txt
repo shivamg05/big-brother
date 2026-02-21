@@ -1,3 +1,4 @@
 [console_scripts]
 big-brother = big_brother.cli:main
 big-brother-dashboard = big_brother.dashboard:main
+big-brother-query = big_brother.query_cli:main

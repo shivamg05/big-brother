@@ -61,3 +61,4 @@ Use `--no-stream` to disable live stdout streaming while still saving files.
 `episodes.jsonl` includes `kind:"labeled"` records when sequence-level episode labeling runs.
 
 You can monitor runs in real-time with the dashboard in `docs/dashboard.md`.
+Persistence and query usage is documented in `docs/persistence_query.md`.
