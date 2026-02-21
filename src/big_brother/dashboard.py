@@ -300,6 +300,8 @@ def _dashboard_html() -> str:
       background: #f7fbfa; max-height: 220px; overflow: auto; font-size: 12px;
     }
     .ask-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 10px; }
+    .toggle-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+    .toggle-row input { width: auto; }
   </style>
 </head>
 <body>
@@ -357,8 +359,13 @@ def _dashboard_html() -> str:
         <input id="askInput" type="text" placeholder="Ask naturally: 'How much time was nail_gun used between 120s and 300s?'" />
         <button id="askBtn">Ask</button>
       </div>
+      <div class="toggle-row">
+        <input id="showReasoning" type="checkbox" />
+        <label for="showReasoning" class="small">Show reasoning trace</label>
+      </div>
       <div id="askStatus" class="small" style="margin-top:6px;"></div>
       <pre id="askOutput">Natural-language answers will appear here.</pre>
+      <pre id="reasoningOutput" style="display:none;">Reasoning trace will appear here.</pre>
     </section>
   </div>
 
@@ -376,6 +383,8 @@ def _dashboard_html() -> str:
     const askBtn = document.getElementById("askBtn");
     const askOutput = document.getElementById("askOutput");
     const askStatus = document.getElementById("askStatus");
+    const showReasoning = document.getElementById("showReasoning");
+    const reasoningOutput = document.getElementById("reasoningOutput");
 
     async function fetchRuns() {
       const res = await fetch("/api/runs");
@@ -532,13 +541,24 @@ def _dashboard_html() -> str:
         if (!res.ok) {
           askOutput.textContent = `Error: ${data.detail || "Request failed"}`;
           askStatus.textContent = "Query failed.";
+          reasoningOutput.style.display = "none";
+          reasoningOutput.textContent = "";
           return;
         }
         askOutput.textContent = data.answer || "No answer generated.";
+        if (showReasoning.checked && data.reasoning_trace) {
+          reasoningOutput.style.display = "block";
+          reasoningOutput.textContent = data.reasoning_trace;
+        } else {
+          reasoningOutput.style.display = "none";
+          reasoningOutput.textContent = "";
+        }
         askStatus.textContent = "Query completed.";
       } catch (err) {
         askOutput.textContent = `Error: ${err}`;
         askStatus.textContent = "Query failed.";
+        reasoningOutput.style.display = "none";
+        reasoningOutput.textContent = "";
       } finally {
         askBtn.disabled = false;
         askBtn.textContent = "Ask";
@@ -551,6 +571,11 @@ def _dashboard_html() -> str:
     });
     runQueryBtn.addEventListener("click", runLiveQuery);
     askBtn.addEventListener("click", askNaturalLanguage);
+    showReasoning.addEventListener("change", () => {
+      if (!showReasoning.checked) {
+        reasoningOutput.style.display = "none";
+      }
+    });
 
     async function tick() {
       await fetchRuns();

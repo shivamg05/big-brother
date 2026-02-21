@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 from .query import QueryAPI
 from .query_cli import run_query
-from .schema import Tool
+from .schema import Action, Tool
 
 TOOL_ALIASES = {
     "nail gun": "nail_gun",
@@ -33,6 +33,28 @@ PURPOSE_BY_ACTION = {
     "inspect": "inspection/verification",
     "walk": "movement/transport",
     "carry": "material transport",
+    "mark": "layout/prep for later operations",
+}
+
+ACTION_ALIASES = {
+    "marking": "mark",
+    "mark": "mark",
+    "measuring": "measure",
+    "measure": "measure",
+    "cutting": "cut",
+    "cut": "cut",
+    "drilling": "drill",
+    "drill": "drill",
+    "nailing": "nail",
+    "nail": "nail",
+    "fastening": "fasten",
+    "fasten": "fasten",
+    "walking": "walk",
+    "walk": "walk",
+    "carrying": "carry",
+    "carry": "carry",
+    "aligning": "align",
+    "align": "align",
 }
 
 
@@ -43,6 +65,7 @@ class GeminiNLQueryEngine:
     client: Any | None = None
     requests_per_minute: int = 20
     max_retries: int = 4
+    use_deterministic_answers: bool = False
     _last_request_ts: float = 0.0
 
     def __post_init__(self) -> None:
@@ -87,13 +110,22 @@ class GeminiNLQueryEngine:
             primary_result=result,
             question=question,
         )
-        deterministic = self._deterministic_answer(question=question, structured=structured, context=context)
-        answer = deterministic or self._results_to_nl(question=question, structured=structured, result=result, context=context)
+        deterministic = None
+        if self.use_deterministic_answers:
+            deterministic = self._deterministic_answer(question=question, structured=structured, context=context)
+        answer, reasoning = self._results_to_nl(
+            question=question,
+            structured=structured,
+            result=result,
+            context=context,
+            deterministic_override=deterministic,
+        )
         return {
             "question": question,
             "structured_query": structured,
             "result": result,
             "context": context,
+            "reasoning_trace": reasoning,
             "answer": answer,
         }
 
@@ -145,13 +177,18 @@ class GeminiNLQueryEngine:
         structured: dict[str, Any],
         result: dict[str, Any] | list[dict[str, Any]],
         context: dict[str, Any],
-    ) -> str:
+        deterministic_override: str | None = None,
+    ) -> tuple[str, str]:
+        if deterministic_override:
+            return deterministic_override, "deterministic"
         result_preview = result
         if isinstance(result, list) and len(result) > 25:
             result_preview = result[-25:]
         prompt = (
-            "Answer the user question using the query result. "
-            "Be concise and factual. Mention uncertainty if result is sparse. "
+            "Answer the user question using the query result and derived context. "
+            "First think through evidence in <reasoning>...</reasoning>. "
+            "Then provide final user-facing answer in <ans>...</ans>. "
+            "Keep reasoning concise and factual; include uncertainty when evidence is weak. "
             f"Question: {question}\n"
             f"Structured Query: {json.dumps(structured, separators=(',', ':'))}\n"
             f"Query Result: {json.dumps(result_preview, separators=(',', ':'))}\n"
@@ -165,8 +202,17 @@ class GeminiNLQueryEngine:
         )
         text = getattr(response, "text", None)
         if not text:
-            return "No answer generated."
-        return text.strip()
+            return "No answer generated.", ""
+        parsed = self._parse_tagged_answer(text.strip())
+        return parsed["answer"], parsed["reasoning"]
+
+    @staticmethod
+    def _parse_tagged_answer(text: str) -> dict[str, str]:
+        reasoning_match = re.search(r"<reasoning>(.*?)</reasoning>", text, flags=re.IGNORECASE | re.DOTALL)
+        answer_match = re.search(r"<ans>(.*?)</ans>", text, flags=re.IGNORECASE | re.DOTALL)
+        reasoning = reasoning_match.group(1).strip() if reasoning_match else ""
+        answer = answer_match.group(1).strip() if answer_match else text.strip()
+        return {"reasoning": reasoning, "answer": answer}
 
     def _postprocess_structured(
         self,
@@ -182,6 +228,7 @@ class GeminiNLQueryEngine:
         if normalized_tool is None:
             normalized_tool = self._infer_tool_from_question(question)
         out["tool"] = normalized_tool
+        out["action"] = self._infer_action_from_question(question)
 
         q = question.lower()
         asks_where = "where" in q or "location" in q
@@ -195,7 +242,7 @@ class GeminiNLQueryEngine:
             or "tools being used" in q
             or "tools are being used" in q
         )
-        if (asks_where or asks_purpose) and out.get("tool"):
+        if (asks_where or asks_purpose) and (out.get("tool") or out.get("action")):
             out["query_type"] = "events"
             out["limit"] = max(int(out.get("limit", 200)), 300)
         if asks_walking_duration:
@@ -240,6 +287,18 @@ class GeminiNLQueryEngine:
                 return canonical
         return None
 
+    @staticmethod
+    def _infer_action_from_question(question: str) -> str | None:
+        q = re.sub(r"[^a-z0-9_ -]", " ", question.lower())
+        for alias, canonical in ACTION_ALIASES.items():
+            if alias in q:
+                return canonical
+        action_values = {a.value for a in Action}
+        for token in q.split():
+            if token in action_values:
+                return token
+        return None
+
     def _build_context(
         self,
         *,
@@ -252,6 +311,7 @@ class GeminiNLQueryEngine:
         end_ts = float(structured["end_ts"])
         worker_id = str(structured["worker_id"])
         tool = structured.get("tool")
+        action_filter = structured.get("action")
 
         context: dict[str, Any] = {}
         if isinstance(primary_result, dict) and "tool_usage_seconds" in primary_result:
@@ -260,6 +320,8 @@ class GeminiNLQueryEngine:
         events = api.get_events(start_ts=start_ts, end_ts=end_ts, worker_id=worker_id)
         if tool:
             events = [e for e in events if str(e.get("tool")) == str(tool)]
+        if action_filter:
+            events = [e for e in events if str(e.get("action")) == str(action_filter)]
         context["matching_event_count"] = len(events)
         if not events:
             return context
@@ -308,6 +370,16 @@ class GeminiNLQueryEngine:
         context["top_locations"] = sorted(locations.items(), key=lambda x: x[1], reverse=True)[:3]
         context["top_actions"] = sorted(actions.items(), key=lambda x: x[1], reverse=True)[:3]
         context["top_materials"] = sorted(materials.items(), key=lambda x: x[1], reverse=True)[:3]
+        if action_filter:
+            all_events = api.get_events(start_ts=start_ts, end_ts=end_ts, worker_id=worker_id)
+            followups: dict[str, int] = {}
+            for idx, ev in enumerate(all_events):
+                if str(ev.get("action")) != str(action_filter):
+                    continue
+                for nxt in all_events[idx + 1 : idx + 3]:
+                    next_action = str(nxt.get("action", "unknown"))
+                    followups[next_action] = followups.get(next_action, 0) + 1
+            context["followup_actions"] = sorted(followups.items(), key=lambda x: x[1], reverse=True)[:4]
         return context
 
     def _deterministic_answer(self, *, question: str, structured: dict[str, Any], context: dict[str, Any]) -> str | None:
@@ -341,8 +413,11 @@ class GeminiNLQueryEngine:
         if not (asks_where or asks_purpose):
             return None
         tool = structured.get("tool")
+        action_filter = structured.get("action")
         count = int(context.get("matching_event_count", 0))
         if count == 0:
+            if action_filter:
+                return f"No instances of action `{action_filter}` were found in the selected time range."
             if tool:
                 return f"No instances of `{tool}` were found in the selected time range."
             return "No matching events were found in the selected time range."
@@ -350,16 +425,19 @@ class GeminiNLQueryEngine:
         top_locations = context.get("top_locations", [])
         top_actions = context.get("top_actions", [])
         top_materials = context.get("top_materials", [])
+        followups = context.get("followup_actions", [])
 
         loc_text = " and ".join([str(x[0]) for x in top_locations[:2]]) if top_locations else "unknown areas"
         purposes = []
         for action, _ in top_actions:
             purposes.append(PURPOSE_BY_ACTION.get(str(action), str(action)))
+        for action, _ in followups:
+            purposes.append(PURPOSE_BY_ACTION.get(str(action), str(action)))
         purpose_text = ", ".join(dict.fromkeys(purposes)) if purposes else "unclear purpose"
         material_text = ", ".join([str(x[0]) for x in top_materials[:3]]) if top_materials else "unspecified materials"
-        tool_text = str(tool) if tool else "the tool"
+        subject_text = f"action `{action_filter}`" if action_filter else (f"`{tool}`" if tool else "the activity")
         return (
-            f"`{tool_text}` appears in {count} events (~{seconds:.1f}s). "
+            f"{subject_text} appears in {count} events (~{seconds:.1f}s). "
             f"It is mostly used in {loc_text}, primarily for {purpose_text}, "
             f"often around {material_text}."
         )

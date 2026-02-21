@@ -31,7 +31,10 @@ class _Models:
                     }
                 )
             )
-        return _Resp("Nail gun was used for 10.0 seconds in the selected interval.")
+        return _Resp(
+            "<reasoning>Matched tool usage in one event spanning 10s.</reasoning>"
+            "<ans>Nail gun was used for 10.0 seconds in the selected interval.</ans>"
+        )
 
 
 class _Client:
@@ -117,6 +120,7 @@ def test_nl_query_engine_round_trip() -> None:
     assert out["structured_query"]["query_type"] == "tool-usage"
     assert out["result"]["tool_usage_seconds"] == 10.0
     assert "Nail gun" in out["answer"]
+    assert "Matched tool usage" in out["reasoning_trace"]
 
 
 def test_nl_query_normalizes_nail_gun_alias() -> None:
@@ -173,7 +177,7 @@ def test_nl_query_infers_where_and_purpose_from_events() -> None:
         )
     )
     api = QueryAPI(store)
-    engine = GeminiNLQueryEngine(client=_ParserOnlyClient())
+    engine = GeminiNLQueryEngine(client=_ParserOnlyClient(), use_deterministic_answers=True)
     out = engine.ask(api=api, question="where is he using the nail gun and for what purpose")
     store.close()
 
@@ -226,7 +230,7 @@ def test_nl_query_walking_duration_answer() -> None:
         )
     )
     api = QueryAPI(store)
-    engine = GeminiNLQueryEngine(client=_ParserOnlyClient())
+    engine = GeminiNLQueryEngine(client=_ParserOnlyClient(), use_deterministic_answers=True)
     out = engine.ask(api=api, question="how long is the worker walking for?")
     store.close()
 
@@ -257,7 +261,7 @@ def test_nl_query_tool_alias_with_punctuation() -> None:
         )
     )
     api = QueryAPI(store)
-    engine = GeminiNLQueryEngine(client=_ParserNullToolClient())
+    engine = GeminiNLQueryEngine(client=_ParserNullToolClient(), use_deterministic_answers=True)
     out = engine.ask(api=api, question="How long did the worker use a tape measure, and why?")
     store.close()
 
@@ -307,10 +311,82 @@ def test_nl_query_tools_inventory_question() -> None:
         )
     )
     api = QueryAPI(store)
-    engine = GeminiNLQueryEngine(client=_ParserNullToolClient())
+    engine = GeminiNLQueryEngine(client=_ParserNullToolClient(), use_deterministic_answers=True)
     out = engine.ask(api=api, question="what are the tools that are being used")
     store.close()
 
     assert out["structured_query"]["query_type"] == "events"
     assert "nail_gun" in out["answer"]
     assert "tape_measure" in out["answer"]
+
+
+def test_nl_query_marking_purpose_is_action_grounded() -> None:
+    store = MemoryStore()
+    store.append_event(
+        SubtaskEvent.from_model_output(
+            {
+                "phase": "prepare",
+                "action": "mark",
+                "tool": "speed_square",
+                "materials": ["wood"],
+                "people_nearby": "0",
+                "speaking": "none",
+                "location_hint": "same_area",
+                "confidence": 0.9,
+                "evidence": "mark line",
+            },
+            t_start=0.0,
+            t_end=10.0,
+            worker_id="worker-1",
+            video_id="v1",
+            source_window_id="w1",
+        )
+    )
+    store.append_event(
+        SubtaskEvent.from_model_output(
+            {
+                "phase": "prepare",
+                "action": "measure",
+                "tool": "tape_measure",
+                "materials": ["wood"],
+                "people_nearby": "0",
+                "speaking": "none",
+                "location_hint": "same_area",
+                "confidence": 0.9,
+                "evidence": "measure after mark",
+            },
+            t_start=10.0,
+            t_end=20.0,
+            worker_id="worker-1",
+            video_id="v1",
+            source_window_id="w2",
+        )
+    )
+    store.append_event(
+        SubtaskEvent.from_model_output(
+            {
+                "phase": "execute",
+                "action": "cut",
+                "tool": "circular_saw",
+                "materials": ["wood"],
+                "people_nearby": "0",
+                "speaking": "none",
+                "location_hint": "same_area",
+                "confidence": 0.9,
+                "evidence": "cut after measure",
+            },
+            t_start=20.0,
+            t_end=30.0,
+            worker_id="worker-1",
+            video_id="v1",
+            source_window_id="w3",
+        )
+    )
+    api = QueryAPI(store)
+    engine = GeminiNLQueryEngine(client=_ParserNullToolClient(), use_deterministic_answers=True)
+    out = engine.ask(api=api, question="what was the worker marking and for what goal/purpose")
+    store.close()
+
+    assert out["structured_query"]["action"] == "mark"
+    assert "action `mark` appears in 1 events (~10.0s)" in out["answer"]
+    assert "layout/measurement" in out["answer"] or "cutting material" in out["answer"]
