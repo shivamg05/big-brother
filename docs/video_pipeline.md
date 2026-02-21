@@ -36,7 +36,7 @@ uv run big-brother --videos-dir videos --extractor gemini --window-size 15 --ove
 Or a single file:
 
 ```bash
-uv run big-brother --videos-dir videos --video sample.mp4 --extractor gemini
+uv run big-brother --videos-dir videos --video t1.mp4 --extractor gemini --output-dir outputs --requests-per-minute 60 --episode-labeler gemini
 
 # Free-tier friendly rate limit (Gemini often limited to 5 RPM)
 uv run big-brother --videos-dir videos --video sample.mp4 --extractor gemini --requests-per-minute 4 --max-retries 8
@@ -59,3 +59,5 @@ Files are written incrementally to:
 Use `--no-stream` to disable live stdout streaming while still saving files.
 
 `episodes.jsonl` includes `kind:"labeled"` records when sequence-level episode labeling runs.
+
+You can monitor runs in real-time with the dashboard in `docs/dashboard.md`.

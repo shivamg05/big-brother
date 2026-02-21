@@ -1,9 +1,12 @@
 pyproject.toml
 src/big_brother/__init__.py
 src/big_brother/cli.py
+src/big_brother/dashboard.py
 src/big_brother/episode.py
 src/big_brother/extractor.py
 src/big_brother/gating.py
+src/big_brother/labeler.py
+src/big_brother/output.py
 src/big_brother/pipeline.py
 src/big_brother/query.py
 src/big_brother/runner.py
@@ -17,7 +20,9 @@ src/big_brother.egg-info/dependency_links.txt
 src/big_brother.egg-info/entry_points.txt
 src/big_brother.egg-info/requires.txt
 src/big_brother.egg-info/top_level.txt
+tests/test_dashboard.py
 tests/test_episode.py
+tests/test_episode_labeler_pipeline.py
 tests/test_gating.py
 tests/test_gemini_extractor.py
 tests/test_pipeline.py

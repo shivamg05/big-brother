@@ -3,10 +3,12 @@ name = "big-brother"
 version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
+    "fastapi>=0.116.0",
     "google-genai>=1.0.0",
     "numpy>=2.0.0",
     "opencv-python-headless>=4.10.0.84",
     "python-dotenv>=1.0.0",
+    "uvicorn>=0.35.0",
 ]
 
 [build-system]
@@ -21,3 +23,4 @@ where = ["src"]
 
 [project.scripts]
 big-brother = "big_brother.cli:main"
+big-brother-dashboard = "big_brother.dashboard:main"
