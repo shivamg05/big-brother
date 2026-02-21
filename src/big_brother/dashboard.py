@@ -148,7 +148,7 @@ def create_app(*, outputs_dir: Path, videos_dir: Path, nl_engine: GeminiNLQueryE
         query_type: str = Query(..., alias="type"),
         start_ts: float = Query(0.0),
         end_ts: float = Query(1e12),
-        worker_id: str = Query("worker-1"),
+        worker_id: str | None = Query(None),
         tool: str | None = Query(None),
         label: str | None = Query(None),
         limit: int = Query(200, ge=1, le=1000),
@@ -159,16 +159,34 @@ def create_app(*, outputs_dir: Path, videos_dir: Path, nl_engine: GeminiNLQueryE
         store = MemoryStore(db_path=db_path)
         try:
             api = QueryAPI(store)
+            resolved_worker_id = worker_id or run
             result = run_query(
                 api,
                 query_type=query_type,
                 start_ts=start_ts,
                 end_ts=end_ts,
-                worker_id=worker_id,
+                worker_id=resolved_worker_id,
                 tool=tool,
                 label=label,
                 limit=limit,
             )
+            # Backward compatibility for older runs that used worker-1.
+            if (query_type in {"events", "episodes"} and isinstance(result, list) and not result) or (
+                isinstance(result, dict)
+                and query_type in {"tool-usage", "idle-ratio", "search-time"}
+                and all(float(v) == 0.0 for v in result.values())
+            ):
+                if resolved_worker_id != "worker-1":
+                    result = run_query(
+                        api,
+                        query_type=query_type,
+                        start_ts=start_ts,
+                        end_ts=end_ts,
+                        worker_id="worker-1",
+                        tool=tool,
+                        label=label,
+                        limit=limit,
+                    )
             return JSONResponse({"run": run, "query_type": query_type, "result": result})
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -179,7 +197,7 @@ def create_app(*, outputs_dir: Path, videos_dir: Path, nl_engine: GeminiNLQueryE
     def ask(
         run: str = Query(...),
         q: str = Query(..., min_length=2),
-        worker_id: str = Query("worker-1"),
+        worker_id: str | None = Query(None),
     ) -> JSONResponse:
         nonlocal engine
         db_path = outputs_dir / run / "memory.db"
@@ -193,8 +211,9 @@ def create_app(*, outputs_dir: Path, videos_dir: Path, nl_engine: GeminiNLQueryE
         store = MemoryStore(db_path=db_path)
         try:
             api = QueryAPI(store)
+            resolved_worker_id = worker_id or run
             try:
-                out = engine.ask(api=api, question=q, default_worker_id=worker_id)
+                out = engine.ask(api=api, question=q, default_worker_id=resolved_worker_id)
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
             except Exception as exc:

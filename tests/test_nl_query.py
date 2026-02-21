@@ -390,3 +390,33 @@ def test_nl_query_marking_purpose_is_action_grounded() -> None:
     assert out["structured_query"]["action"] == "mark"
     assert "action `mark` appears in 1 events (~10.0s)" in out["answer"]
     assert "layout/measurement" in out["answer"] or "cutting material" in out["answer"]
+
+
+def test_nl_query_overrides_generic_worker_id_with_default() -> None:
+    store = MemoryStore()
+    store.append_event(
+        SubtaskEvent.from_model_output(
+            {
+                "phase": "prepare",
+                "action": "mark",
+                "tool": "speed_square",
+                "materials": ["wood"],
+                "people_nearby": "0",
+                "speaking": "none",
+                "location_hint": "same_area",
+                "confidence": 0.9,
+                "evidence": "mark line",
+            },
+            t_start=0.0,
+            t_end=10.0,
+            worker_id="juan",
+            video_id="juan",
+            source_window_id="w1",
+        )
+    )
+    api = QueryAPI(store)
+    engine = GeminiNLQueryEngine(client=_ParserNullToolClient(), use_deterministic_answers=True)
+    out = engine.ask(api=api, question="how long has the worker spent marking stuff", default_worker_id="juan")
+    store.close()
+
+    assert out["structured_query"]["worker_id"] == "juan"

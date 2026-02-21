@@ -222,7 +222,11 @@ class GeminiNLQueryEngine:
         default_worker_id: str,
     ) -> dict[str, Any]:
         out = dict(structured)
-        out["worker_id"] = str(out.get("worker_id") or default_worker_id)
+        parsed_worker_id = str(out.get("worker_id") or "")
+        if parsed_worker_id in {"", "worker-1", "unknown", "none", "null"}:
+            out["worker_id"] = default_worker_id
+        else:
+            out["worker_id"] = parsed_worker_id
         tool = out.get("tool")
         normalized_tool = self._normalize_tool(tool)
         if normalized_tool is None:
