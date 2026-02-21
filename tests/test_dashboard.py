@@ -68,7 +68,16 @@ def test_dashboard_snapshot_and_frame(tmp_path: Path) -> None:
     )
     db.close()
 
-    app = create_app(outputs_dir=outputs_dir, videos_dir=videos_dir)
+    class _FakeNLEngine:
+        def ask(self, *, api, question, default_worker_id):
+            return {
+                "question": question,
+                "structured_query": {"query_type": "events", "start_ts": 0, "end_ts": 10},
+                "result": api.get_events(start_ts=0, end_ts=10, worker_id=default_worker_id),
+                "answer": "Found matching events.",
+            }
+
+    app = create_app(outputs_dir=outputs_dir, videos_dir=videos_dir, nl_engine=_FakeNLEngine())
     client = TestClient(app)
 
     runs = client.get("/api/runs")
@@ -100,3 +109,9 @@ def test_dashboard_snapshot_and_frame(tmp_path: Path) -> None:
     assert q_metric.status_code == 200
     q_metric_body = q_metric.json()
     assert q_metric_body["result"]["tool_usage_seconds"] >= 2.0
+
+    ask = client.get("/api/ask", params={"run": "t1", "q": "what happened in the first 10 seconds?"})
+    assert ask.status_code == 200
+    ask_body = ask.json()
+    assert ask_body["answer"] == "Found matching events."
+    assert ask_body["structured_query"]["query_type"] == "events"

@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 import uvicorn
 
+from .nl_query import GeminiNLQueryEngine
 from .query import QueryAPI
 from .query_cli import run_query
 from .storage import MemoryStore
@@ -74,8 +75,9 @@ def _extract_frame_jpeg(video_path: Path, t_seconds: float) -> bytes:
         cap.release()
 
 
-def create_app(*, outputs_dir: Path, videos_dir: Path) -> FastAPI:
+def create_app(*, outputs_dir: Path, videos_dir: Path, nl_engine: GeminiNLQueryEngine | None = None) -> FastAPI:
     app = FastAPI(title="Big Brother Dashboard")
+    engine = nl_engine
 
     @app.get("/", response_class=HTMLResponse)
     def home() -> str:
@@ -170,6 +172,29 @@ def create_app(*, outputs_dir: Path, videos_dir: Path) -> FastAPI:
             return JSONResponse({"run": run, "query_type": query_type, "result": result})
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        finally:
+            store.close()
+
+    @app.get("/api/ask")
+    def ask(
+        run: str = Query(...),
+        q: str = Query(..., min_length=2),
+        worker_id: str = Query("worker-1"),
+    ) -> JSONResponse:
+        nonlocal engine
+        db_path = outputs_dir / run / "memory.db"
+        if not db_path.exists():
+            raise HTTPException(status_code=404, detail=f"No memory DB found for run '{run}' at {db_path}")
+        if engine is None:
+            try:
+                engine = GeminiNLQueryEngine()
+            except Exception as exc:
+                raise HTTPException(status_code=400, detail=f"NL engine unavailable: {exc}") from exc
+        store = MemoryStore(db_path=db_path)
+        try:
+            api = QueryAPI(store)
+            out = engine.ask(api=api, question=q, default_worker_id=worker_id)
+            return JSONResponse(out)
         finally:
             store.close()
 
@@ -269,6 +294,7 @@ def _dashboard_html() -> str:
       margin: 8px 0 0; padding: 10px; border-radius: 8px; border: 1px solid #d6e2dd;
       background: #f7fbfa; max-height: 220px; overflow: auto; font-size: 12px;
     }
+    .ask-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 10px; }
   </style>
 </head>
 <body>
@@ -322,6 +348,12 @@ def _dashboard_html() -> str:
         <button id="runQueryBtn">Run Query</button>
       </div>
       <pre id="queryOutput">Run a query to inspect persisted memory.db results.</pre>
+      <div class="ask-row">
+        <input id="askInput" type="text" placeholder="Ask naturally: 'How much time was nail_gun used between 120s and 300s?'" />
+        <button id="askBtn">Ask</button>
+      </div>
+      <div id="askStatus" class="small" style="margin-top:6px;"></div>
+      <pre id="askOutput">Natural-language answers will appear here.</pre>
     </section>
   </div>
 
@@ -335,6 +367,10 @@ def _dashboard_html() -> str:
     const filterInput = document.getElementById("filterInput");
     const runQueryBtn = document.getElementById("runQueryBtn");
     const queryOutput = document.getElementById("queryOutput");
+    const askInput = document.getElementById("askInput");
+    const askBtn = document.getElementById("askBtn");
+    const askOutput = document.getElementById("askOutput");
+    const askStatus = document.getElementById("askStatus");
 
     async function fetchRuns() {
       const res = await fetch("/api/runs");
@@ -469,11 +505,41 @@ def _dashboard_html() -> str:
       queryOutput.textContent = JSON.stringify(data, null, 2);
     }
 
+    async function askNaturalLanguage() {
+      if (!currentRun) return;
+      const q = (askInput.value || "").trim();
+      if (!q) return;
+      const params = new URLSearchParams();
+      params.set("run", currentRun);
+      params.set("q", q);
+      askBtn.disabled = true;
+      askBtn.textContent = "Asking...";
+      askStatus.textContent = "Running natural-language query...";
+      try {
+        const res = await fetch(`/api/ask?${params.toString()}`);
+        const data = await res.json();
+        if (!res.ok) {
+          askOutput.textContent = `Error: ${data.detail || "Request failed"}`;
+          askStatus.textContent = "Query failed.";
+          return;
+        }
+        askOutput.textContent = data.answer || "No answer generated.";
+        askStatus.textContent = "Query completed.";
+      } catch (err) {
+        askOutput.textContent = `Error: ${err}`;
+        askStatus.textContent = "Query failed.";
+      } finally {
+        askBtn.disabled = false;
+        askBtn.textContent = "Ask";
+      }
+    }
+
     runSelect.addEventListener("change", () => {
       currentRun = runSelect.value;
       refreshSnapshot();
     });
     runQueryBtn.addEventListener("click", runLiveQuery);
+    askBtn.addEventListener("click", askNaturalLanguage);
 
     async function tick() {
       await fetchRuns();

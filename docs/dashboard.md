@@ -39,3 +39,16 @@ Filter input format:
 
 - `tool=nail_gun` (for tool-usage)
 - `label=framing_wall` (for episodes)
+
+## Natural Language Query
+
+Use the NL box in the dashboard to ask questions like:
+
+- "How long was the nail gun used between 120 and 300 seconds?"
+- "What episodes were labeled framing_wall?"
+
+The system runs:
+
+1. NL -> structured query
+2. deterministic retrieval from `memory.db`
+3. retrieval result -> NL answer
