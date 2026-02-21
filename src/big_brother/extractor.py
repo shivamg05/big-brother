@@ -35,6 +35,7 @@ class GeminiExtractor:
     client: Any | None = None
     requests_per_minute: int = 4
     max_retries: int = 8
+    parse_retries: int = 2
     _last_request_ts: float = 0.0
     _bystander_markers: tuple[str, ...] = (
         "another worker",
@@ -98,8 +99,7 @@ class GeminiExtractor:
                         mime_type=str(frame.get("mime_type", "image/jpeg")),
                     )
                 )
-        response = self._generate_content_with_backoff(contents)
-        payload = self._parse_response_json(response)
+        payload = self._extract_payload_with_retries(contents=contents, state=state)
         payload = self._enforce_pov_consistency(payload, state=state)
         return SubtaskEvent.from_model_output(
             payload,
@@ -109,6 +109,18 @@ class GeminiExtractor:
             video_id=video_id,
             source_window_id=source_window_id,
         )
+
+    def _extract_payload_with_retries(self, *, contents: list[Any], state: dict[str, object]) -> dict[str, Any]:
+        attempts = max(1, self.parse_retries + 1)
+        last_error: Exception | None = None
+        for _ in range(attempts):
+            response = self._generate_content_with_backoff(contents)
+            try:
+                return self._parse_response_json(response)
+            except RuntimeError as exc:
+                last_error = exc
+                continue
+        return self._fallback_payload(state=state, error=str(last_error) if last_error else "parse_failed")
 
     def _build_prompt(
         self,
@@ -201,13 +213,53 @@ Window:
 
     @staticmethod
     def _parse_response_json(response: Any) -> dict[str, Any]:
+        parsed = getattr(response, "parsed", None)
+        if isinstance(parsed, dict):
+            return parsed
         text = getattr(response, "text", None)
+        if not text:
+            text = GeminiExtractor._extract_text_from_candidates(response)
         if not text:
             raise RuntimeError("Gemini response did not contain text JSON")
         try:
             return json.loads(text)
         except json.JSONDecodeError as exc:
             raise RuntimeError(f"Gemini returned non-JSON output: {text}") from exc
+
+    @staticmethod
+    def _extract_text_from_candidates(response: Any) -> str | None:
+        candidates = getattr(response, "candidates", None)
+        if not candidates:
+            return None
+        try:
+            for candidate in candidates:
+                content = getattr(candidate, "content", None)
+                parts = getattr(content, "parts", None) if content is not None else None
+                if not parts:
+                    continue
+                for part in parts:
+                    txt = getattr(part, "text", None)
+                    if txt:
+                        return str(txt)
+        except Exception:
+            return None
+        return None
+
+    @staticmethod
+    def _fallback_payload(*, state: dict[str, object], error: str) -> dict[str, Any]:
+        last_phase = str(state.get("last_phase", "unknown"))
+        safe_phase = last_phase if last_phase in {"travel", "search", "setup", "inspect", "unknown"} else "unknown"
+        return {
+            "phase": safe_phase,
+            "action": "other",
+            "tool": "unknown",
+            "materials": ["unknown"],
+            "people_nearby": "unknown",
+            "speaking": "unknown",
+            "location_hint": str(state.get("last_location_hint", "unknown")),
+            "confidence": 0.2,
+            "evidence": f"fallback_due_to_parse_failure:{error}",
+        }
 
     def _generate_content_with_backoff(self, contents: list[Any]) -> Any:
         if self.client is None:

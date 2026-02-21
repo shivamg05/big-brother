@@ -68,6 +68,49 @@ class _FlakyClient:
         self.models = _FlakyModels()
 
 
+class _NoTextThenJsonModels:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def generate_content(self, *, model: str, contents: str, config: dict[str, object]):
+        self.calls += 1
+        if self.calls == 1:
+            class _NoTextResponse:
+                text = None
+
+            return _NoTextResponse()
+        payload = {
+            "phase": "execute",
+            "action": "nail",
+            "tool": "nail_gun",
+            "materials": ["wood"],
+            "people_nearby": "0",
+            "speaking": "none",
+            "location_hint": "same_area",
+            "confidence": 0.9,
+            "evidence": "success on retry",
+        }
+        return _FakeResponse(json.dumps(payload))
+
+
+class _NoTextThenJsonClient:
+    def __init__(self) -> None:
+        self.models = _NoTextThenJsonModels()
+
+
+class _AlwaysNoTextModels:
+    def generate_content(self, *, model: str, contents: str, config: dict[str, object]):
+        class _NoTextResponse:
+            text = None
+
+        return _NoTextResponse()
+
+
+class _AlwaysNoTextClient:
+    def __init__(self) -> None:
+        self.models = _AlwaysNoTextModels()
+
+
 def test_gemini_extractor_parses_json_response() -> None:
     client = _FakeClient()
     extractor = GeminiExtractor(client=client)
@@ -159,3 +202,35 @@ def test_gemini_extractor_downgrades_bystander_tool_activity() -> None:
     assert event.action.value == "walk"
     assert event.tool.value == "none"
     assert event.confidence == 0.5
+
+
+def test_gemini_extractor_retries_when_text_missing() -> None:
+    extractor = GeminiExtractor(client=_NoTextThenJsonClient(), requests_per_minute=0, parse_retries=2)
+    event = extractor.extract(
+        sampled_frames=[{"motion": 0.8}],
+        state={},
+        t_start=0.0,
+        t_end=15.0,
+        worker_id="w1",
+        video_id="v1",
+        source_window_id="w-retry",
+    )
+    assert event.tool.value == "nail_gun"
+    assert event.evidence == "success on retry"
+
+
+def test_gemini_extractor_falls_back_when_text_missing_persistently() -> None:
+    extractor = GeminiExtractor(client=_AlwaysNoTextClient(), requests_per_minute=0, parse_retries=1)
+    event = extractor.extract(
+        sampled_frames=[{"motion": 0.8}],
+        state={"last_phase": "travel", "last_location_hint": "same_area"},
+        t_start=0.0,
+        t_end=15.0,
+        worker_id="w1",
+        video_id="v1",
+        source_window_id="w-fallback",
+    )
+    assert event.action.value == "other"
+    assert event.tool.value == "unknown"
+    assert event.confidence == 0.2
+    assert "fallback_due_to_parse_failure" in event.evidence
