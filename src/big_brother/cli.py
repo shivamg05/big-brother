@@ -111,6 +111,7 @@ def main() -> int:
         pipeline = WorkerMemoryPipeline(extractor=extractor, episode_labeler=episode_labeler, store=store)
         try:
             pipeline.config.video_id = path.stem
+            pipeline.config.worker_id = path.stem
             summary = analyze_video(
                 path,
                 pipeline,
