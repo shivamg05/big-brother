@@ -1,13 +1,10 @@
-# Local Setup (First Time)
-
-Use this guide when running the project locally for the first time after cloning the repo.
+# Local Setup
 
 ## 1. Prerequisites
 
-- macOS or Linux shell environment
-- `git`
-- `uv` installed
-- Python `3.13+` (project requires `>=3.13`)
+- macOS or Linux shell
+- Python `>=3.13`
+- `uv`
 
 Install `uv` (if needed):
 
@@ -15,14 +12,14 @@ Install `uv` (if needed):
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Verify tools:
+If shell says `uv: command not found`, add it to PATH:
 
 ```bash
-uv --version
-python3 --version
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
 ```
 
-## 2. Clone and install dependencies
+## 2. Install
 
 ```bash
 git clone <YOUR_REPO_URL>
@@ -30,37 +27,29 @@ cd big-brother
 uv sync
 ```
 
-`uv sync` creates/updates the local virtual environment and installs all dependencies from `pyproject.toml`/`uv.lock`.
+## 3. Configure API key (Gemini mode)
 
-## 3. Configure environment variables
-
-Create a `.env` file in repo root:
+Create `.env` in repo root:
 
 ```bash
-cat > .env << 'EOF'
+cat > .env << 'EOF_ENV'
 GEMINI_API_KEY=your_api_key_here
-EOF
+EOF_ENV
 ```
 
-Alternative variable name also supported:
+Also supported: `GOOGLE_API_KEY`.
 
-- `GOOGLE_API_KEY`
+## 4. Add videos
 
-If you do not want to use Gemini yet, skip this and run with `--extractor heuristic --episode-labeler heuristic`.
-
-## 4. Add input videos
-
-Put videos into `videos/` (supported extensions: `.mp4`, `.mov`, `.avi`, `.mkv`, `.m4v`).
-
-Example:
+Put files in `videos/` (`.mp4/.mov/.avi/.mkv/.m4v`).
 
 ```bash
 cp /path/to/video.mp4 videos/t1.mp4
 ```
 
-## 5. Run analysis
+## 5. Analyze video
 
-Gemini-backed run:
+Gemini mode:
 
 ```bash
 uv run big-brother \
@@ -73,7 +62,7 @@ uv run big-brother \
   --max-retries 8
 ```
 
-No-API-key local run (heuristic):
+Heuristic mode (no API key):
 
 ```bash
 uv run big-brother \
@@ -84,48 +73,42 @@ uv run big-brother \
   --output-dir outputs
 ```
 
-Artifacts are written to:
+Artifacts are written to `outputs/<video_stem>/`.
 
-- `outputs/<video_stem>/windows.jsonl`
-- `outputs/<video_stem>/events.jsonl`
-- `outputs/<video_stem>/episodes.jsonl`
-- `outputs/<video_stem>/summary.json`
-- `outputs/<video_stem>/memory.db`
-
-## 6. Start the dashboard
+## 6. Run dashboard
 
 ```bash
 uv run big-brother-dashboard --outputs-dir outputs --videos-dir videos --port 8008
 ```
 
-Open:
+Open `http://127.0.0.1:8008`.
 
-- `http://127.0.0.1:8008`
-
-## 7. Query persisted memory from CLI
-
-Example event query:
+## 7. Query persisted memory
 
 ```bash
-uv run big-brother-query \
-  --db-path outputs/t1/memory.db \
-  --query events \
-  --start-ts 0 \
-  --end-ts 400
+uv run big-brother-query --db-path outputs/t1/memory.db --query events --start-ts 0 --end-ts 400
 ```
 
-Example tool-usage query:
+## 8. Optional post-process: merge touching same-label episodes
 
 ```bash
-uv run big-brother-query \
-  --db-path outputs/t1/memory.db \
-  --query tool-usage \
-  --tool nail_gun \
-  --start-ts 0 \
-  --end-ts 400
+uv run big-brother-merge-episodes --outputs-dir outputs --videos-dir videos
 ```
 
-## 8. Optional: run tests
+Dry run:
+
+```bash
+uv run big-brother-merge-episodes --outputs-dir outputs --videos-dir videos --dry-run
+```
+
+Notes:
+
+- The merge tool skips runs with no matching source video in `videos/`.
+- It creates backups before applying:
+  - `memory.db.pre_merge.bak`
+  - `episodes.pre_merge.bak.jsonl`
+
+## 9. Tests
 
 ```bash
 uv run pytest -q
@@ -133,13 +116,13 @@ uv run pytest -q
 
 ## Troubleshooting
 
+- `uv: command not found`:
+  - add `$HOME/.local/bin` to PATH.
 - `Missing Gemini API key`:
-  - add `GEMINI_API_KEY` to `.env` or run heuristic mode.
+  - set `GEMINI_API_KEY` or `GOOGLE_API_KEY`.
 - `google-genai is not installed`:
-  - run `uv sync` again.
-- `No videos found in videos`:
-  - confirm video files are in `videos/` and pass `--video <filename>`.
+  - run `uv sync`.
+- `/api/frame ... 404` in dashboard:
+  - missing `videos/<run>.<ext>` for the selected run.
 - Dashboard shows no runs:
-  - confirm analysis has completed and `outputs/<run>/events.jsonl` exists.
-- Frame previews missing:
-  - ensure video name matches run folder stem (for `outputs/t1`, video should be `videos/t1.<ext>`).
+  - confirm `outputs/<run>/events.jsonl` exists.

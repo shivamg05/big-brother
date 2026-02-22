@@ -1,54 +1,73 @@
 # Persistence and Querying
 
-This project now persists in-video memory to SQLite and provides a query CLI.
+## Persistence model
+
+Each run stores SQLite memory at:
+
+- `outputs/<run>/memory.db`
+
+This DB powers query CLI + dashboard API endpoints.
 
 ## Analyze with persistence
-
-By default, analysis writes a DB per video:
-
-- `outputs/<video_stem>/memory.db`
-
-Example:
 
 ```bash
 uv run big-brother --videos-dir videos --video t1.mp4 --extractor gemini --output-dir outputs
 ```
 
-You can also provide an explicit DB path for a single video run:
+Optional explicit DB path (single video only):
 
 ```bash
 uv run big-brother --videos-dir videos --video t1.mp4 --db-path outputs/t1/custom.db
 ```
 
-## Query persisted memory
+## Query CLI
 
-### Events
+Events:
 
 ```bash
 uv run big-brother-query --db-path outputs/t1/memory.db --query events --start-ts 0 --end-ts 400
 ```
 
-### Episodes
+Episodes:
 
 ```bash
 uv run big-brother-query --db-path outputs/t1/memory.db --query episodes --start-ts 0 --end-ts 400
 ```
 
-### Tool usage
+Tool usage:
 
 ```bash
 uv run big-brother-query --db-path outputs/t1/memory.db --query tool-usage --tool nail_gun --start-ts 0 --end-ts 400
 ```
 
-### Idle ratio
+Idle ratio:
 
 ```bash
 uv run big-brother-query --db-path outputs/t1/memory.db --query idle-ratio --start-ts 0 --end-ts 400
 ```
 
-### Search time
+Search time:
 
 ```bash
 uv run big-brother-query --db-path outputs/t1/memory.db --query search-time --start-ts 0 --end-ts 400
 ```
 
+## Episode merge utility
+
+Merge touching same-label closed episodes in DB + `episodes.jsonl`:
+
+```bash
+uv run big-brother-merge-episodes --outputs-dir outputs --videos-dir videos
+```
+
+Dry run:
+
+```bash
+uv run big-brother-merge-episodes --outputs-dir outputs --videos-dir videos --dry-run
+```
+
+Safety behavior:
+
+- skips runs with no matching video in `videos/`
+- creates backups before write (`memory.db.pre_merge.bak`, `episodes.pre_merge.bak.jsonl`)
+- verifies `events` table fingerprint remains unchanged

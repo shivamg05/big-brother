@@ -1,12 +1,6 @@
-# Live Dashboard
+# Dashboard
 
-Spin up a real-time dashboard that tails output artifacts and shows:
-
-- live event log
-- associated video frames per event timestamp
-- labeled episode feed
-- phase/action/tool distributions
-- live query panel over persisted memory DB
+Run a local UI for browsing runs, querying memory, and inspecting episodes.
 
 ## Run
 
@@ -14,41 +8,49 @@ Spin up a real-time dashboard that tails output artifacts and shows:
 uv run big-brother-dashboard --outputs-dir outputs --videos-dir videos --port 8008
 ```
 
-Open:
+Open: `http://127.0.0.1:8008`
 
-`http://127.0.0.1:8008`
+If `uv` is not on PATH, run with full path:
+
+```bash
+$HOME/.local/bin/uv run big-brother-dashboard --outputs-dir outputs --videos-dir videos --port 8008
+```
+
+## What the Dashboard Shows
+
+- Worker/session overview cards.
+- Event Log tab:
+  - event cards with phase/action/tool chips
+  - frame preview per event timestamp
+  - filters for phase/action/tool
+  - sort toggle (newest/oldest)
+- Episodes tab:
+  - horizontal episode timeline with alternating nodes
+  - clickable episode details pane
+  - zoom in/out controls with center-preserving zoom
+- Chat panel:
+  - natural-language Q&A over persisted memory
+  - markdown-rendered assistant answers
+  - typing animation + thinking indicator
+
+## Data Requirements
+
+Dashboard data is read from:
+
+- `outputs/<run>/events.jsonl`
+- `outputs/<run>/episodes.jsonl`
+- `outputs/<run>/windows.jsonl`
+- `outputs/<run>/summary.json`
+- `outputs/<run>/memory.db`
+
+Frame previews require a matching video file:
+
+- `videos/<run>.mp4` (or `.mov`, `.avi`, `.mkv`, `.m4v`)
+
+If the video is missing, `/api/frame` returns `404` and event thumbnails cannot render.
 
 ## Notes
 
-- The dashboard polls every 2 seconds.
-- It expects per-run folders like `outputs/<run>/events.jsonl`.
-- Frame previews are resolved from `videos/<run>.(mp4|mov|avi|mkv|m4v)`.
-- Live query reads `outputs/<run>/memory.db`.
-
-## Dashboard Querying
-
-The "Live Query" panel supports:
-
-- `events`
-- `episodes`
-- `tool-usage`
-- `idle-ratio`
-- `search-time`
-
-Filter input format:
-
-- `tool=nail_gun` (for tool-usage)
-- `label=framing_wall` (for episodes)
-
-## Natural Language Query
-
-Use the NL box in the dashboard to ask questions like:
-
-- "How long was the nail gun used between 120 and 300 seconds?"
-- "What episodes were labeled framing_wall?"
-
-The system runs:
-
-1. NL -> structured query
-2. deterministic retrieval from `memory.db`
-3. retrieval result -> NL answer
+- Run list is based on folders under `outputs/`.
+- Snapshot polling is periodic, so newly written artifacts appear automatically.
+- NL answers use Gemini-backed query flow and require API key/dependencies.
