@@ -83,3 +83,4 @@
 {"window_id":"adi_koul-w82","t_start":1230.0,"t_end":1245.0,"decision_reason":"change_detected","extended_event_id":null,"event_id":"7b4de693-2368-4419-a5c5-47fe08477eb6","closed_episode_count":1}
 {"window_id":"adi_koul-w83","t_start":1245.0,"t_end":1260.0,"decision_reason":"change_detected","extended_event_id":null,"event_id":"0516dec5-5159-48a9-b52a-d1df57b431af","closed_episode_count":0}
 {"window_id":"adi_koul-w84","t_start":1260.0,"t_end":1275.0,"decision_reason":"change_detected","extended_event_id":null,"event_id":"b6c5aab2-90a4-4621-a707-81dba7261e1b","closed_episode_count":0}
+{"window_id":"adi_koul-w85","t_start":1275.0,"t_end":1276.0,"decision_reason":"periodic_refresh","extended_event_id":null,"event_id":"436b8e43-b4e8-494c-b208-e50593eba125","closed_episode_count":1}

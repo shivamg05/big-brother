@@ -83,3 +83,4 @@
 {"window_id":"manas_erramilli-w82","t_start":1230.0,"t_end":1245.0,"decision_reason":"change_detected","extended_event_id":null,"event_id":"7cd00503-8ebb-467f-9fb9-972dd3d929e0","closed_episode_count":0}
 {"window_id":"manas_erramilli-w83","t_start":1245.0,"t_end":1260.0,"decision_reason":"change_detected","extended_event_id":null,"event_id":"ac25b13b-a13f-4c66-92a7-1f49235c9f40","closed_episode_count":0}
 {"window_id":"manas_erramilli-w84","t_start":1260.0,"t_end":1275.0,"decision_reason":"change_detected","extended_event_id":null,"event_id":"12d2b728-8f36-4e42-87d5-48df1fb67b09","closed_episode_count":0}
+{"window_id":"manas_erramilli-w85","t_start":1275.0,"t_end":1276.0,"decision_reason":"periodic_refresh","extended_event_id":null,"event_id":"39338c7a-f0e4-4ebb-8c55-ce73727162d3","closed_episode_count":0}
