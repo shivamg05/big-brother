@@ -67,7 +67,7 @@ class GeminiExtractor:
         if not api_key:
             raise ValueError("Missing Gemini API key. Set it in .env or as GEMINI_API_KEY/GOOGLE_API_KEY.")
         try:
-            from google import genai
+            import google.genai as genai
         except ImportError as exc:  # pragma: no cover - depends on environment packages
             raise RuntimeError("google-genai is not installed. Add dependency: google-genai") from exc
         self.client = genai.Client(api_key=api_key)

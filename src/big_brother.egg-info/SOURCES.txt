@@ -6,6 +6,7 @@ src/big_brother/episode.py
 src/big_brother/extractor.py
 src/big_brother/gating.py
 src/big_brother/labeler.py
+src/big_brother/nl_query.py
 src/big_brother/output.py
 src/big_brother/pipeline.py
 src/big_brother/query.py
@@ -26,6 +27,7 @@ tests/test_episode.py
 tests/test_episode_labeler_pipeline.py
 tests/test_gating.py
 tests/test_gemini_extractor.py
+tests/test_nl_query.py
 tests/test_persistence.py
 tests/test_pipeline.py
 tests/test_query_api.py

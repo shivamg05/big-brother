@@ -17,6 +17,7 @@ from .nl_query import GeminiNLQueryEngine
 from .query import QueryAPI
 from .query_cli import run_query
 from .storage import MemoryStore
+from .sql_agent import SQLAgent
 
 
 VIDEO_EXTENSIONS = [".mp4", ".mov", ".avi", ".mkv", ".m4v"]
@@ -219,28 +220,33 @@ def create_app(*, outputs_dir: Path, videos_dir: Path, nl_engine: GeminiNLQueryE
         q: str = Query(..., min_length=2),
         worker_id: str | None = Query(None),
     ) -> JSONResponse:
-        nonlocal engine
         db_path = outputs_dir / run / "memory.db"
         if not db_path.exists():
             raise HTTPException(status_code=404, detail=f"No memory DB found for run '{run}' at {db_path}")
-        if engine is None:
-            try:
-                engine = GeminiNLQueryEngine()
-            except Exception as exc:
-                raise HTTPException(status_code=400, detail=f"NL engine unavailable: {exc}") from exc
-        store = MemoryStore(db_path=db_path)
+
+        # Use the new SQL agent
         try:
-            api = QueryAPI(store)
-            resolved_worker_id = worker_id or run
+            agent = SQLAgent(db_path=str(db_path))
+            result = agent.ask(q)
+            return JSONResponse(result)
+        except Exception as exc:
+            # Fallback to old NL engine if SQL agent fails
+            nonlocal engine
+            if engine is None:
+                try:
+                    engine = GeminiNLQueryEngine()
+                except Exception as exc2:
+                    raise HTTPException(status_code=400, detail=f"Query engines unavailable: {exc}") from exc2
+            store = MemoryStore(db_path=db_path)
             try:
+                api = QueryAPI(store)
+                resolved_worker_id = worker_id or run
                 out = engine.ask(api=api, question=q, default_worker_id=resolved_worker_id)
-            except ValueError as exc:
-                raise HTTPException(status_code=400, detail=str(exc)) from exc
-            except Exception as exc:
-                raise HTTPException(status_code=500, detail=f"NL query failed: {exc}") from exc
-            return JSONResponse(out)
-        finally:
-            store.close()
+                return JSONResponse(out)
+            except Exception as exc2:
+                raise HTTPException(status_code=500, detail=f"Query failed: {exc2}") from exc2
+            finally:
+                store.close()
 
     @app.post("/api/workers")
     async def create_worker(

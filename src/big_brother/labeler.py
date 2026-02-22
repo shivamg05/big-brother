@@ -81,7 +81,7 @@ class GeminiEpisodeLabeler:
         if not api_key:
             raise ValueError("Missing Gemini API key for episode labeler.")
         try:
-            from google import genai
+            import google.genai as genai
         except ImportError as exc:  # pragma: no cover
             raise RuntimeError("google-genai is not installed. Add dependency: google-genai") from exc
         self.client = genai.Client(api_key=api_key)
