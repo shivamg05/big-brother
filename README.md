@@ -1,10 +1,14 @@
 # big-brother
 
-Team Members: Manas Erramilli, Shivam Garg, Parth Kocheta, Adi Koul
+Team Members: Manas Erramilli, Shivam Garg, Parth Kocheta, Aditya Koul
 
 `big-brother` turns long-form worker POV video into structured, queryable operational memory.
 
-This is a working system prototype, not a polished commercial product. The goal is to show that construction video can become reliable, inspectable memory that supports analysis and decision-making instead of sitting as unsearchable footage.
+This repository delivers a working end-to-end system prototype that converts raw construction video into reliable, inspectable memory for analysis and decision support.
+
+## Demo
+
+Watch the project demo: [YouTube - big-brother demo](https://youtu.be/l1hkzxq_6xM)
 
 ## Why This Matters
 
@@ -30,7 +34,7 @@ The dashboard reads these artifacts directly, so the whole pipeline is inspectab
 
 ## Technical Approach
 
-We deliberately use a layered architecture instead of one large end-to-end prompt:
+We use a layered architecture instead of one monolithic prompt:
 
 1. Window video (`10-20s` typical).
 2. Sample representative frames per window.
@@ -40,7 +44,7 @@ We deliberately use a layered architecture instead of one large end-to-end promp
 6. Label closed episodes from sequence context.
 7. Persist to SQLite + JSONL for deterministic querying and auditability.
 
-This gives us lower cost, clearer failure modes, and better debuggability than black-box video summarization.
+This design keeps cost controlled, exposes clear failure modes, and is significantly easier to debug than black-box video summarization.
 
 ## Core Features (Current)
 
@@ -76,11 +80,11 @@ Main modules:
 - `src/big_brother/dashboard.py` - UI + API surface
 - `src/big_brother/sql_agent.py` - read-only LLM-generated SQL answering
 
-For a deeper module-level breakdown, see `architecture.md`.
+For a deeper module-level breakdown, see `TECHNICAL_BREAKDOWN.md`.
 
 ## Quick Start
 
-Prereqs:
+Prerequisites:
 
 - Python `>=3.13`
 - `uv`
@@ -158,7 +162,7 @@ Supported query types:
 - `idle-ratio`
 - `search-time`
 
-## What We Learned Building It
+## Key Outcomes
 
 - Structured intermediate memory is much easier to trust and debug than free-form summaries.
 - Gating is high leverage for cost control without losing timeline continuity.
@@ -171,11 +175,11 @@ A simple, high-impact next step is connecting memory across runs/videos so an LL
 
 ## Scope Note
 
-This repository demonstrates a robust technical approach and working prototype. It is not yet packaged as a production SaaS product.
+This repository is a robust technical implementation and working prototype. It is not packaged as a production SaaS product.
 
 ## Docs
 
-- `architecture.md` - current technical architecture
+- `TECHNICAL_BREAKDOWN.md` - current technical architecture
 - `docs/local_setup.md` - setup and troubleshooting
 - `docs/video_pipeline.md` - video pipeline behavior and outputs
 - `docs/dashboard.md` - dashboard behavior
