@@ -728,6 +728,120 @@ def _dashboard_html() -> str:
       color: var(--muted);
       font-size: 12px;
     }
+    .episodes-timeline-card {
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+      padding: 14px;
+      overflow-x: hidden;
+      overflow-y: visible;
+    }
+    .episodes-empty {
+      color: var(--muted);
+      font-size: 13px;
+      padding: 10px 4px;
+    }
+    .episodes-timeline {
+      position: relative;
+      min-height: 280px;
+      padding-top: 26px;
+      padding-bottom: 26px;
+    }
+    .episodes-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      height: 5px;
+      margin-top: -2.5px;
+      border-radius: 999px;
+      background: #d5ddd9;
+    }
+    .episodes-duration {
+      position: absolute;
+      top: calc(50% - 5px);
+      height: 10px;
+      border-radius: 999px;
+      background: #b8d2c7;
+      border: 1px solid #9ebfac;
+      z-index: 1;
+    }
+    .episodes-duration.active {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .episodes-node {
+      position: absolute;
+      top: 50%;
+      transform: translateX(-50%);
+      z-index: 2;
+    }
+    .episodes-dot {
+      position: absolute;
+      left: 50%;
+      top: 0;
+      transform: translate(-50%, -50%);
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 2px #cbd8d2;
+    }
+    .episodes-label {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 86px;
+      height: 86px;
+      border-radius: 999px;
+      border: 1px solid #8fb8a8;
+      background: #dcebe5;
+      color: #2f5146;
+      font-size: 11px;
+      line-height: 1.3;
+      font-weight: 700;
+      padding: 8px;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+    }
+    .episodes-node.dot-top .episodes-label {
+      bottom: 20px;
+    }
+    .episodes-node.dot-bottom .episodes-label {
+      top: 20px;
+    }
+    .episodes-label.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .episode-detail-pane {
+      margin-top: 12px;
+      border: 1px solid #cfddd7;
+      border-radius: 12px;
+      background: #f7fbf9;
+      padding: 12px;
+      color: #35574d;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .episode-detail-title {
+      margin: 0 0 6px;
+      color: #2a4b41;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .episode-detail-meta {
+      color: #4c6a5f;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
     .kv { font-size: 13px; color: #3e3a34; }
     .small { font-size: 12px; color: var(--muted); }
     .status-row {
@@ -1027,6 +1141,12 @@ def _dashboard_html() -> str:
       .event-log-controls { grid-template-columns: 1fr; }
       .event-filter-grid { grid-template-columns: 1fr; }
       .event-sort-toggle { width: 100%; }
+      .episodes-timeline-card { padding: 10px; }
+      .episodes-label {
+        width: 74px;
+        height: 74px;
+        font-size: 10px;
+      }
     }
   </style>
 </head>
@@ -1232,6 +1352,7 @@ def _dashboard_html() -> str:
       const [eventActionFilter, setEventActionFilter] = useState("all");
       const [eventToolFilter, setEventToolFilter] = useState("all");
       const [eventSortOrder, setEventSortOrder] = useState("desc");
+      const [selectedEpisodeId, setSelectedEpisodeId] = useState("");
       const [messageId, setMessageId] = useState(1);
       const [addWorkerOpen, setAddWorkerOpen] = useState(false);
       const [newWorkerName, setNewWorkerName] = useState("");
@@ -1312,6 +1433,7 @@ def _dashboard_html() -> str:
         setEventActionFilter("all");
         setEventToolFilter("all");
         setEventSortOrder("desc");
+        setSelectedEpisodeId("");
       }, [run]);
 
       useEffect(() => () => clearAllTypingIntervals(), []);
@@ -1466,6 +1588,10 @@ def _dashboard_html() -> str:
       const allEvents = snapshot?.events || [];
       const events = useMemo(() => allEvents.slice().reverse(), [allEvents]);
       const episodes = useMemo(() => (snapshot?.labeled_episodes || []).slice().reverse(), [snapshot]);
+      const episodesChrono = useMemo(
+        () => (snapshot?.labeled_episodes || []).slice().sort((a, b) => (Number(a.t_start) || 0) - (Number(b.t_start) || 0)),
+        [snapshot],
+      );
       const phaseDist = snapshot?.distributions?.phase || {};
       const actionDist = snapshot?.distributions?.action || {};
       const toolDist = snapshot?.distributions?.tool || {};
@@ -1546,6 +1672,10 @@ def _dashboard_html() -> str:
         ? "Session completed"
         : (latestEvent ? `${activePhasePct}% of recent time` : `${topPhaseCount} events in recent window`);
       const idleBarColor = "var(--accent)";
+      const timelineStart = episodesChrono.length > 0 ? (Number(episodesChrono[0]?.t_start) || 0) : 0;
+      const timelineEnd = episodesChrono.length > 0 ? (Number(episodesChrono[episodesChrono.length - 1]?.t_end) || timelineStart) : 0;
+      const timelineSpan = Math.max(1, timelineEnd - timelineStart);
+      const selectedEpisode = episodesChrono.find((ep) => String(ep.episode_id || "") === selectedEpisodeId) || null;
 
       const navItems = [
         { key: "dashboard", label: "Dashboard" },
@@ -1759,10 +1889,57 @@ ${m.reasoning}`}
             {activeTab === "episodes" ? (
               <section className="card">
                 <h2>Episodes</h2>
-                <div className="log">
-                  {loadingSnapshot && <><div className="skeleton" /><div className="skeleton" /></>}
-                  {!loadingSnapshot && episodes.map((ep) => <EpisodeCard key={`${ep.episode_id}-${ep.kind || "k"}`} ep={ep} />)}
-                </div>
+                {loadingSnapshot ? (
+                  <div className="log"><><div className="skeleton" /><div className="skeleton" /></></div>
+                ) : (
+                  <div className="episodes-timeline-card">
+                    {episodesChrono.length === 0 ? (
+                      <div className="episodes-empty">No episodes available yet.</div>
+                    ) : (
+                      <>
+                        <div
+                          className="episodes-timeline"
+                          style={{ minWidth: "100%", width: "100%" }}
+                        >
+                          <div className="episodes-line" />
+                          {episodesChrono.map((ep, idx) => {
+                            const epId = String(ep.episode_id || "");
+                            const left = ((Math.max(timelineStart, Number(ep.t_start) || timelineStart) - timelineStart) / timelineSpan) * 100;
+                            const width = (Math.max(0, (Number(ep.t_end) || 0) - (Number(ep.t_start) || 0)) / timelineSpan) * 100;
+                            const midpoint = (((Number(ep.t_start) || 0) + (Number(ep.t_end) || 0)) / 2.0 - timelineStart) / timelineSpan * 100;
+                            const isActive = selectedEpisodeId === epId;
+                            return (
+                              <React.Fragment key={`${epId}-${ep.kind || "k"}`}>
+                                <div
+                                  className={`episodes-duration ${isActive ? "active" : ""}`}
+                                  style={{ left: `${left}%`, width: `${Math.max(1.4, width)}%` }}
+                                  title={`${fmtTime(ep.t_start)} → ${fmtTime(ep.t_end)}`}
+                                />
+                                <div className={`episodes-node ${idx % 2 === 0 ? "dot-top" : "dot-bottom"}`} style={{ left: `${Math.min(98, Math.max(2, midpoint))}%` }}>
+                                  <button
+                                    className={`episodes-label ${isActive ? "active" : ""}`}
+                                    onClick={() => setSelectedEpisodeId((prev) => (prev === epId ? "" : epId))}
+                                    title={fmtLabel(ep.label)}
+                                  >
+                                    {fmtLabel(ep.label)}
+                                  </button>
+                                  <span className="episodes-dot" />
+                                </div>
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+                        {selectedEpisode ? (
+                          <div className="episode-detail-pane">
+                            <h3 className="episode-detail-title">{fmtLabel(selectedEpisode.label)}</h3>
+                            <div className="episode-detail-meta">{fmtTime(selectedEpisode.t_start)} → {fmtTime(selectedEpisode.t_end)}</div>
+                            <div>{selectedEpisode.reasoning || "No description available for this episode."}</div>
+                          </div>
+                        ) : null}
+                      </>
+                    )}
+                  </div>
+                )}
               </section>
             ) : null}
           </main>
