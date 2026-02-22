@@ -730,7 +730,7 @@ def _dashboard_html() -> str:
     }
     .episodes-timeline-card {
       margin-top: 10px;
-      border: 1px solid var(--border);
+      border: 1px solid var(--accent);
       border-radius: 12px;
       background: #fff;
       padding: 14px;
@@ -957,6 +957,9 @@ def _dashboard_html() -> str:
       border: 0;
       background: transparent;
     }
+    .chat-msg.assistant .chat-text {
+      font-style: italic;
+    }
     .chat-text {
       font-size: 15px;
       line-height: 1.6;
@@ -1024,6 +1027,20 @@ def _dashboard_html() -> str:
       background: #fff;
       border-color: var(--accent);
       color: var(--text);
+      min-height: 44px;
+      max-height: 180px;
+      border-radius: 12px;
+      resize: none;
+      overflow-y: auto;
+      line-height: 1.4;
+    }
+    .chat-input-wrap .ask-row {
+      align-items: end;
+    }
+    .chat-input-wrap .ask-row .btn {
+      height: 44px;
+      padding: 0;
+      align-self: end;
     }
     .chat-input-wrap .input.chat-query-input::placeholder {
       color: #6f7f79;
@@ -1279,6 +1296,14 @@ def _dashboard_html() -> str:
       return <div className="chat-text markdown-body" dangerouslySetInnerHTML={{ __html: html }} />;
     }
 
+    const CHAT_GREETINGS = [
+      "Hi! What would you like to talk about today?",
+      "Hello there. What should we explore in this session today?",
+      "Welcome back. What do you want to dive into today?",
+      "Hey! What part of today's activity would you like to discuss?",
+      "Good to see you. What should we review together today?",
+    ];
+
     function DistributionCard({ title, dist }) {
       const entries = Object.entries(dist || {});
       const total = entries.reduce((a, [,v]) => a + v, 0) || 1;
@@ -1361,6 +1386,7 @@ def _dashboard_html() -> str:
       const [addingWorker, setAddingWorker] = useState(false);
       const [dragActive, setDragActive] = useState(false);
       const fileInputRef = useRef(null);
+      const askInputRef = useRef(null);
       const typingIntervalsRef = useRef(new Map());
 
       function clearTypingInterval(id) {
@@ -1388,7 +1414,7 @@ def _dashboard_html() -> str:
         let cursor = 0;
         const handle = setInterval(() => {
           const remaining = target.length - cursor;
-          const chunk = remaining > 900 ? 8 : remaining > 400 ? 4 : remaining > 180 ? 2 : 1;
+          const chunk = remaining > 900 ? 10 : remaining > 400 ? 5 : remaining > 180 ? 3 : 1;
           cursor = Math.min(target.length, cursor + chunk);
           const nextText = target.slice(0, cursor);
           const done = cursor >= target.length;
@@ -1396,8 +1422,30 @@ def _dashboard_html() -> str:
             m.id === id ? { ...m, text: nextText, reasoning: reasoning || "", isTyping: !done } : m
           )));
           if (done) clearTypingInterval(id);
-        }, 36);
+        }, 30);
         typingIntervalsRef.current.set(id, handle);
+      }
+
+      function injectGreeting() {
+        const greetingId = 0;
+        const greeting = CHAT_GREETINGS[Math.floor(Math.random() * CHAT_GREETINGS.length)];
+        setChatHistory([
+          {
+            id: greetingId,
+            role: "assistant",
+            text: "",
+            reasoning: "",
+            isTyping: true,
+          },
+        ]);
+        animateAssistantMessage(greetingId, greeting, "");
+      }
+
+      function autoResizeInput(node) {
+        if (!node) return;
+        node.style.height = "auto";
+        const nextHeight = Math.min(180, Math.max(44, node.scrollHeight));
+        node.style.height = `${nextHeight}px`;
       }
 
       useEffect(() => {
@@ -1434,6 +1482,7 @@ def _dashboard_html() -> str:
         setEventToolFilter("all");
         setEventSortOrder("desc");
         setSelectedEpisodeId("");
+        injectGreeting();
       }, [run]);
 
       useEffect(() => () => clearAllTypingIntervals(), []);
@@ -1477,6 +1526,7 @@ def _dashboard_html() -> str:
         setMessageId((v) => v + 1);
         setChatHistory((prev) => [...prev, { id: userMessageId, role: "user", text: q }]);
         setAskInput("");
+        if (askInputRef.current) askInputRef.current.style.height = "44px";
         setAsking(true);
         setAskStatus("");
         try {
@@ -1782,7 +1832,6 @@ def _dashboard_html() -> str:
 
                 <section className="chat-card">
                   <div id="chat-thread" className="chat-thread">
-                    {chatHistory.length === 0 ? <div className="chat-empty">Ask a question to start the conversation.</div> : null}
                     {chatHistory.map((m) => (
                       <div key={m.id} className={`chat-msg ${m.role === "user" ? "user" : "assistant"}`}>
                         {m.role === "assistant" ? <MarkdownText text={m.text} /> : <div className="chat-text">{m.text}</div>}
@@ -1806,15 +1855,25 @@ ${m.reasoning}`}
                         <input id="showReasoning" type="checkbox" checked={showReasoning} onChange={(e) => setShowReasoning(e.target.checked)} />
                         <label htmlFor="showReasoning" className="small">Show reasoning trace</label>
                       </div>
-                      {askStatus === "done" ? <span className="query-indicator done" title="Query complete">✓</span> : null}
                       {askStatus === "error" ? <span className="query-indicator error" title="Query failed">!</span> : null}
                     </div>
                     <div className="ask-row" style={{ marginTop: 6, gap: 6, gridTemplateColumns: "1fr 48px" }}>
-                      <input
+                      <textarea
+                        ref={askInputRef}
                         className="input chat-query-input"
                         value={askInput}
-                        onChange={(e) => setAskInput(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter" && !asking) runAsk(); }}
+                        rows={1}
+                        onChange={(e) => {
+                          setAskInput(e.target.value);
+                          autoResizeInput(e.currentTarget);
+                        }}
+                        onInput={(e) => autoResizeInput(e.currentTarget)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey && !asking) {
+                            e.preventDefault();
+                            runAsk();
+                          }
+                        }}
                         placeholder="Ask about worker activity, episodes, or patterns..."
                         style={{
                           padding: "12px 16px",
