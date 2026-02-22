@@ -258,6 +258,7 @@ def _dashboard_html() -> str:
       max-width: 1240px;
       margin: 0 auto;
       padding: 28px 22px 40px;
+      min-width: 0;
     }
     .title {
       font-family: "Iowan Old Style", "Baskerville", "Times New Roman", serif;
@@ -296,6 +297,7 @@ def _dashboard_html() -> str:
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       padding: 20px;
+      min-width: 0;
     }
     .card h2 {
       margin: 0;
@@ -448,11 +450,17 @@ def _dashboard_html() -> str:
       border: 1px solid var(--border);
       background: #fcfaf6;
       padding: 12px;
-      overflow: auto;
+      overflow-x: auto;
+      overflow-y: auto;
       max-height: 220px;
+      min-width: 0;
+      width: 100%;
       color: #4e473f;
       font-size: 12px;
       line-height: 1.5;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
     .skeleton {
       height: 100px;
@@ -491,6 +499,12 @@ def _dashboard_html() -> str:
       const mm = String(m).padStart(2, "0");
       const ss = String(s).padStart(2, "0");
       return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+    }
+
+    function fmtLabel(label) {
+      const text = String(label || "unknown").replaceAll("_", " ").trim();
+      if (!text) return "Unknown";
+      return text.split(/\\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
     }
 
     function DistributionCard({ title, dist }) {
@@ -539,7 +553,7 @@ def _dashboard_html() -> str:
       return (
         <div className="item">
           <div className="item-head">
-            <div style={{ fontWeight: 700, fontSize: 15 }}>{ep.label || "unknown"}</div>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>{fmtLabel(ep.label)}</div>
             <div className="small">{fmtTime(ep.t_start)} -> {fmtTime(ep.t_end)}</div>
           </div>
           <div style={{ padding: 11 }} className="kv">
@@ -554,13 +568,6 @@ def _dashboard_html() -> str:
       const [run, setRun] = useState("");
       const [snapshot, setSnapshot] = useState(null);
       const [loadingSnapshot, setLoadingSnapshot] = useState(true);
-
-      const [queryType, setQueryType] = useState("events");
-      const [startTs, setStartTs] = useState("0");
-      const [endTs, setEndTs] = useState("1000000000000");
-      const [limit, setLimit] = useState("50");
-      const [filterInput, setFilterInput] = useState("");
-      const [queryOutput, setQueryOutput] = useState("Run a query to inspect persisted memory.db results.");
 
       const [askInput, setAskInput] = useState("");
       const [askOutput, setAskOutput] = useState("Natural-language answers will appear here.");
@@ -616,26 +623,6 @@ def _dashboard_html() -> str:
         const id = setInterval(() => loadSnapshot(false), 5000);
         return () => { alive = false; clearInterval(id); };
       }, [run]);
-
-      async function runStructuredQuery() {
-        if (!run) return;
-        const params = new URLSearchParams();
-        params.set("run", run);
-        params.set("type", queryType);
-        params.set("start_ts", startTs || "0");
-        params.set("end_ts", endTs || "1000000000000");
-        params.set("limit", limit || "50");
-        const raw = (filterInput || "").trim();
-        if (raw.includes("=")) {
-          const [k, ...rest] = raw.split("=");
-          const v = rest.join("=").trim();
-          if (k.trim() === "tool" && v) params.set("tool", v);
-          if (k.trim() === "label" && v) params.set("label", v);
-        }
-        const res = await fetch(`/api/query?${params.toString()}`);
-        const data = await res.json();
-        setQueryOutput(JSON.stringify(data, null, 2));
-      }
 
       async function runAsk() {
         if (!run) return;
@@ -726,24 +713,8 @@ def _dashboard_html() -> str:
 
             <section className="card">
               <h2>Live Query</h2>
-              <div className="query-grid">
-                <select className="select" value={queryType} onChange={(e) => setQueryType(e.target.value)}>
-                  <option value="events">events</option>
-                  <option value="episodes">episodes</option>
-                  <option value="tool-usage">tool-usage</option>
-                  <option value="idle-ratio">idle-ratio</option>
-                  <option value="search-time">search-time</option>
-                </select>
-                <input className="input" value={startTs} onChange={(e) => setStartTs(e.target.value)} placeholder="start ts" />
-                <input className="input" value={endTs} onChange={(e) => setEndTs(e.target.value)} placeholder="end ts" />
-                <input className="input" value={limit} onChange={(e) => setLimit(e.target.value)} placeholder="limit" />
-                <input className="input" value={filterInput} onChange={(e) => setFilterInput(e.target.value)} placeholder="tool=nail_gun or label=framing_wall" />
-                <button className="btn-outline" onClick={runStructuredQuery}>Run Query</button>
-              </div>
-              <pre>{queryOutput}</pre>
-
               <div className="ask-row">
-                <input className="input" value={askInput} onChange={(e) => setAskInput(e.target.value)} placeholder="Ask naturally..." />
+                <input className="input" value={askInput} onChange={(e) => setAskInput(e.target.value)} placeholder="How long did the worker use a tape measure and why?" />
                 <button className="btn" disabled={asking} onClick={runAsk}>{asking ? "Asking..." : "Ask"}</button>
               </div>
               <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
