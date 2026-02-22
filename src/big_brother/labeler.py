@@ -12,6 +12,21 @@ from dotenv import load_dotenv
 
 from .schema import Episode, SubtaskEvent
 
+ALLOWED_EPISODE_LABELS: tuple[str, ...] = (
+    "framing_wall",
+    "floor_sheathing",
+    "cut_and_assemble",
+    "measurement_layout",
+    "material_transport",
+    "inspection",
+    "idle_transition",
+    "concrete_prep_transport",
+    "block_rebar_alignment",
+    "masonry_blockwork",
+    "tile_setting",
+    "unknown",
+)
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -42,6 +57,14 @@ class HeuristicEpisodeLabeler:
 
         actions = [e.action.value for e in events]
         tools = [e.tool.value for e in events]
+        materials = [m.strip().lower() for e in events for m in e.materials]
+        has_concrete = any(
+            kw in m for m in materials for kw in ("concrete", "cement", "gravel", "sand", "mortar", "mix")
+        )
+        has_block = any(("block" in m) or ("cmu" in m) for m in materials)
+        has_rebar = any("rebar" in m for m in materials)
+        has_tile = any("tile" in m for m in materials)
+
         if tools.count("nail_gun") >= 2 and ("measure" in actions or "align" in actions):
             episode.label = "framing_wall"
             episode.reasoning = "Repeated nailing with measuring/alignment pattern."
@@ -51,6 +74,18 @@ class HeuristicEpisodeLabeler:
         elif actions.count("measure") >= 2:
             episode.label = "measurement_layout"
             episode.reasoning = "Mostly repeated measurement/setup actions."
+        elif has_concrete and any(a in actions for a in ("transport", "carry", "move", "walk", "shovel", "mix", "pour")):
+            episode.label = "concrete_prep_transport"
+            episode.reasoning = "Concrete/cement materials with transport/mix/shovel actions."
+        elif "trowel" in tools and (has_block or any(x in materials for x in ("mortar", "grout"))):
+            episode.label = "masonry_blockwork"
+            episode.reasoning = "Trowel work with block/mortar/grout indicates masonry blockwork."
+        elif "trowel" in tools and has_tile:
+            episode.label = "tile_setting"
+            episode.reasoning = "Trowel work with tile/grout materials indicates tile setting."
+        elif (has_block or has_rebar) and any(a in actions for a in ("align", "level", "plumb", "square", "fasten")):
+            episode.label = "block_rebar_alignment"
+            episode.reasoning = "Block/rebar materials with alignment/placement actions."
         elif actions.count("walk") >= max(2, len(actions) // 2):
             episode.label = "material_transport"
             episode.reasoning = "Episode dominated by travel/carry behavior."
@@ -91,8 +126,7 @@ class GeminiEpisodeLabeler:
         prompt = (
             "Infer ONE high-level construction task label from this episode event sequence. "
             "Return JSON with keys: label, confidence, reasoning. "
-            "Allowed labels: framing_wall, floor_sheathing, cut_and_assemble, "
-            "measurement_layout, material_transport, inspection, idle_transition, unknown. "
+            f"Allowed labels: {', '.join(ALLOWED_EPISODE_LABELS)}. "
             f"Episode events: {json.dumps(payload, separators=(',', ':'))}"
         )
         response = self._generate_with_backoff(prompt)
@@ -145,16 +179,7 @@ class GeminiEpisodeLabeler:
                             "properties": {
                                 "label": {
                                     "type": "string",
-                                    "enum": [
-                                        "framing_wall",
-                                        "floor_sheathing",
-                                        "cut_and_assemble",
-                                        "measurement_layout",
-                                        "material_transport",
-                                        "inspection",
-                                        "idle_transition",
-                                        "unknown",
-                                    ],
+                                    "enum": list(ALLOWED_EPISODE_LABELS),
                                 },
                                 "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
                                 "reasoning": {"type": "string"},

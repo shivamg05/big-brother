@@ -1188,13 +1188,24 @@ def _dashboard_html() -> str:
       const latestEvent = events[0] || null;
 
       const totalSeconds = events.reduce((acc, e) => acc + Math.max(0, (Number(e.t_end) || 0) - (Number(e.t_start) || 0)), 0);
-      const idleSeconds = events.reduce((acc, e) => {
+      const activePhaseKey = String(latestEvent?.phase || topPhase || "unknown").toLowerCase();
+      const activePhaseSeconds = events.reduce((acc, e) => {
+        const duration = Math.max(0, (Number(e.t_end) || 0) - (Number(e.t_start) || 0));
+        return String(e.phase || "").toLowerCase() === activePhaseKey ? acc + duration : acc;
+      }, 0);
+      const activePhasePct = totalSeconds > 0 ? Math.round((activePhaseSeconds / totalSeconds) * 100) : 0;
+      const idleAndWalkingSeconds = events.reduce((acc, e) => {
         const phase = String(e.phase || "").toLowerCase();
         const action = String(e.action || "").toLowerCase();
-        const isIdle = phase === "idle" || action === "idle" || action === "wait" || action === "observe";
-        return acc + (isIdle ? Math.max(0, (Number(e.t_end) || 0) - (Number(e.t_start) || 0)) : 0);
+        const isIdleOrWalking =
+          phase === "idle" ||
+          action === "idle" ||
+          action === "wait" ||
+          action === "observe" ||
+          action === "walk";
+        return acc + (isIdleOrWalking ? Math.max(0, (Number(e.t_end) || 0) - (Number(e.t_start) || 0)) : 0);
       }, 0);
-      const idlePct = totalSeconds > 0 ? Math.round((idleSeconds / totalSeconds) * 100) : 0;
+      const idlePct = totalSeconds > 0 ? Math.round((idleAndWalkingSeconds / totalSeconds) * 100) : 0;
       const summaryDuration = Number(snapshot?.summary?.duration_seconds);
       const totalDurationSeconds = Number.isFinite(summaryDuration) && summaryDuration > 0 ? summaryDuration : totalSeconds;
 
@@ -1209,7 +1220,8 @@ def _dashboard_html() -> str:
       const activePhaseLabel = isFinished ? "Clocked Out" : fmtLabel(latestEvent?.phase || topPhase);
       const activePhaseSub = isFinished
         ? "Session completed"
-        : (latestEvent ? `${fmtTime(latestEvent.t_start)} -> ${fmtTime(latestEvent.t_end)}` : `${topPhaseCount} events in recent window`);
+        : (latestEvent ? `${activePhasePct}% of recent time` : `${topPhaseCount} events in recent window`);
+      const idleBarColor = idlePct < 15 ? "#3c8f61" : (idlePct <= 40 ? "#c27a20" : "#bf3f3a");
 
       const navItems = [
         { key: "dashboard", label: "Dashboard" },
@@ -1276,7 +1288,7 @@ def _dashboard_html() -> str:
                 </div>
                 <div className="stat-row">
                   <span className="stat-key">Idle Time</span>
-                  <span className="stat-val">{fmtTime(idleSeconds)} ({idlePct}%)</span>
+                  <span className="stat-val">{fmtTime(idleAndWalkingSeconds)} ({idlePct}%)</span>
                 </div>
               </div>
             </div>
@@ -1290,7 +1302,7 @@ def _dashboard_html() -> str:
                     <div className="metric-label">Active Phase</div>
                     <div className="metric-value">{activePhaseLabel}</div>
                     <div className="metric-sub">{activePhaseSub}</div>
-                    <div className="bar-line"><div className="bar-fill" style={{ width: `${Math.min(100, topPhaseCount * 6)}%` }} /></div>
+                    <div className="bar-line"><div className="bar-fill" style={{ width: `${isFinished ? 100 : activePhasePct}%` }} /></div>
                   </div>
                   <div className="card metric">
                     <div className="metric-label">Primary Tool</div>
@@ -1304,13 +1316,13 @@ def _dashboard_html() -> str:
                     <div className="metric-sub">
                       {lastEpisode ? `${fmtTime(lastEpisode.t_start)} -> ${fmtTime(lastEpisode.t_end)}` : "No episodes yet"}
                     </div>
-                    <div className="bar-line"><div className="bar-fill" style={{ width: lastEpisode ? "75%" : "0%" }} /></div>
+                    <div className="bar-line"><div className="bar-fill" style={{ width: lastEpisode ? (isFinished ? "100%" : "75%") : "0%" }} /></div>
                   </div>
                   <div className="card metric">
                     <div className="metric-label">Idle Time</div>
                     <div className="metric-value">{idlePct}%</div>
-                    <div className="metric-sub">{fmtTime(idleSeconds)} idle in recent window</div>
-                    <div className="bar-line"><div className="bar-fill" style={{ width: `${idlePct}%` }} /></div>
+                    <div className="metric-sub">{fmtTime(idleAndWalkingSeconds)} of idle + walking in recent window</div>
+                    <div className="bar-line"><div className="bar-fill" style={{ width: `${idlePct}%`, background: idleBarColor }} /></div>
                   </div>
                 </section>
 
