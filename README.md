@@ -1,5 +1,7 @@
 # big-brother
 
+Team Members: Manas Erramilli, Shivam Garg, Parth Kocheta, Adi Koul
+
 `big-brother` turns long-form worker POV video into structured, queryable operational memory.
 
 This is a working system prototype, not a polished commercial product. The goal is to show that construction video can become reliable, inspectable memory that supports analysis and decision-making instead of sitting as unsearchable footage.
