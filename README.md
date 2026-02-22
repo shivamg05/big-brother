@@ -1,58 +1,86 @@
 # big-brother
 
-`big-brother` turns long-form worker POV video into structured memory you can query.
+`big-brother` turns long-form worker POV video into structured, queryable operational memory.
 
-This repo is not trying to build a cinematic demo. It is trying to build a reliable, inspectable memory pipeline:
+This is a working system prototype, not a polished commercial product. The goal is to show that construction video can become reliable, inspectable memory that supports analysis and decision-making instead of sitting as unsearchable footage.
 
-1. Break video into time windows.
-2. Extract atomic events from sampled frames.
-3. Group events into longer episodes.
-4. Persist everything to JSONL + SQLite.
-5. Query it deterministically (CLI/API), with optional NL-to-SQL on top.
+## Why This Matters
 
-## What We Are Building
+Teams record large amounts of field video, but most of it is hard to use after capture. You can watch clips manually, but you cannot quickly answer practical questions like:
 
-Given a video like `videos/t1.mp4`, the system produces a run folder like `outputs/t1/` containing:
+- What tools were used most over the last 30 minutes?
+- How much time was spent searching vs executing?
+- What larger task episodes occurred, and when?
 
-- `windows.jsonl`: window-level processing decisions (including gate decisions)
-- `events.jsonl`: short-duration structured events
-- `episodes.jsonl`: open/closed/labeled episode records over time
-- `summary.json`: run-level summary
-- `memory.db`: SQLite store used by query APIs and dashboard
+Our thesis: if we convert raw video into a structured timeline of events and episodes, we unlock much better retrieval and downstream automation.
 
-The dashboard reads these artifacts directly, so you can inspect behavior as it runs.
+## What We Built
 
-## Approach (And Why)
+Given an input like `videos/t1.mp4`, the system generates `outputs/t1/` with:
 
-Most failure modes in video intelligence come from trying to do too much in one shot. This project intentionally uses a layered approach:
+- `windows.jsonl`: per-window processing and gate decisions
+- `events.jsonl`: atomic structured activity events
+- `episodes.jsonl`: higher-level grouped episodes (open/closed/labeled)
+- `summary.json`: run-level processing stats
+- `memory.db`: SQLite memory used by query APIs and dashboard
 
-- Short-window extraction for local accuracy
-- Episode construction from event sequences (not single frames)
-- Gating to skip expensive model calls when signals are stable
-- Deterministic storage/query layer as the source of truth
+The dashboard reads these artifacts directly, so the whole pipeline is inspectable while running.
 
-This gives you lower cost, better debuggability, and easier regression testing than end-to-end black-box prompting.
+## Technical Approach
 
-## System Flow
+We deliberately use a layered architecture instead of one large end-to-end prompt:
 
-`video -> windows -> sampled frames -> subtask events -> episode builder -> episode labeler -> storage/query`
+1. Window video (`10-20s` typical).
+2. Sample representative frames per window.
+3. Compute cheap change signals (motion/drift) for gating.
+4. Extract one structured event per relevant window (Gemini or heuristic fallback).
+5. Build longer episodes from event sequences.
+6. Label closed episodes from sequence context.
+7. Persist to SQLite + JSONL for deterministic querying and auditability.
 
-Main components:
+This gives us lower cost, clearer failure modes, and better debuggability than black-box video summarization.
 
-- `src/big_brother/video.py`: windowing + frame sampling + cheap motion signals
-- `src/big_brother/gating.py`: decide whether to call extractor or extend prior event
-- `src/big_brother/extractor.py`: event extraction backend (`gemini` or heuristic)
-- `src/big_brother/episode.py`: episode boundary logic
-- `src/big_brother/labeler.py`: episode labeling backend (`gemini`, heuristic, or off)
-- `src/big_brother/storage.py`: SQLite persistence
-- `src/big_brother/query.py` + `query_cli.py`: deterministic query surface
-- `src/big_brother/dashboard.py`: FastAPI + UI for live inspection and querying
+## Core Features (Current)
+
+- Multi-video CLI processing with configurable window size, overlap, and frame count.
+- Gating engine to avoid unnecessary model calls in stable segments.
+- Structured extraction schema with strict enums (`phase`, `action`, `tool`, etc.).
+- Rolling state passed between windows for temporal continuity.
+- Episode boundary detection with heuristic split logic (idle/travel/location/tool shifts).
+- Episode labeling via Gemini or heuristic labeler.
+- Deterministic query layer over SQLite (`events`, `episodes`, `tool-usage`, `idle-ratio`, `search-time`).
+- FastAPI dashboard for:
+  - run snapshot inspection
+  - frame retrieval at timestamps
+  - structured queries
+  - NL ask endpoint powered by SQL agent
+  - worker/session upload + auto-run kickoff
+- JSONL streaming output for live traceability.
+- Heuristic extractor/labeler path for no-key or local fallback mode.
+
+## Architecture At A Glance
+
+`video -> windowing -> gating -> event extraction -> episode builder -> episode labeler -> storage -> query/dashboard`
+
+Main modules:
+
+- `src/big_brother/video.py` - ingest, windowing, frame sampling, change signals
+- `src/big_brother/gating.py` - model-call decisioning
+- `src/big_brother/extractor.py` - Gemini + heuristic event extraction
+- `src/big_brother/episode.py` - episode construction
+- `src/big_brother/labeler.py` - episode labeling backends
+- `src/big_brother/storage.py` - SQLite persistence (`events`, `episodes`)
+- `src/big_brother/query.py` / `query_cli.py` - deterministic queries
+- `src/big_brother/dashboard.py` - UI + API surface
+- `src/big_brother/sql_agent.py` - read-only LLM-generated SQL answering
+
+For a deeper module-level breakdown, see `architecture.md`.
 
 ## Quick Start
 
 Prereqs:
 
-- Python `>=3.13` (required by `pyproject.toml`)
+- Python `>=3.13`
 - `uv`
 
 Install deps:
@@ -61,13 +89,13 @@ Install deps:
 uv sync
 ```
 
-Add `.env` (for Gemini mode):
+Set API key for Gemini-backed paths:
 
 ```bash
 GEMINI_API_KEY=your_key
 ```
 
-Place a video in `videos/`, then run:
+Run one video:
 
 ```bash
 uv run big-brother \
@@ -78,7 +106,7 @@ uv run big-brother \
   --output-dir outputs
 ```
 
-No-key local run:
+No-key local fallback:
 
 ```bash
 uv run big-brother \
@@ -97,9 +125,9 @@ uv run big-brother-dashboard --outputs-dir outputs --videos-dir videos --port 80
 
 Open `http://127.0.0.1:8008`.
 
-## Querying
+## Query Examples
 
-CLI query examples:
+Events in a time range:
 
 ```bash
 uv run big-brother-query \
@@ -108,6 +136,8 @@ uv run big-brother-query \
   --start-ts 0 \
   --end-ts 400
 ```
+
+Tool usage duration:
 
 ```bash
 uv run big-brother-query \
@@ -126,24 +156,26 @@ Supported query types:
 - `idle-ratio`
 - `search-time`
 
-## Design Principles
+## What We Learned Building It
 
-- Prefer explicit schemas and enums over free-form text.
-- Treat persistence as a first-class product surface.
-- Keep model calls narrow and explainable.
-- Make every stage inspectable with artifacts you can diff.
-- Allow heuristic fallback for offline/dev workflows.
+- Structured intermediate memory is much easier to trust and debug than free-form summaries.
+- Gating is high leverage for cost control without losing timeline continuity.
+- Persisting both JSONL and SQLite gives good developer ergonomics: human-inspectable logs + machine-queryable state.
+- Episode-level reasoning is stronger when derived from event sequences instead of direct single-frame guesses.
 
-## What This Is Not
+## Next Iteration (Realistic)
 
-- Not a fully general activity-recognition benchmark framework.
-- Not a one-shot prompt wrapper with hidden state.
-- Not optimized for visual storytelling; optimized for memory quality and queryability.
+A simple, high-impact next step is connecting memory across runs/videos so an LLM can analyze behavior over longer horizons (cross-day/cross-worker retrieval and orchestration), not just one run at a time.
 
-## Repo Docs
+## Scope Note
 
-- `docs/local_setup.md`: first-time setup and troubleshooting
-- `docs/video_pipeline.md`: pipeline details and outputs
-- `docs/dashboard.md`: dashboard and live query behavior
-- `docs/persistence_query.md`: persistence/query examples
-- `docs/overview.md`: higher-level system spec
+This repository demonstrates a robust technical approach and working prototype. It is not yet packaged as a production SaaS product.
+
+## Docs
+
+- `architecture.md` - current technical architecture
+- `docs/local_setup.md` - setup and troubleshooting
+- `docs/video_pipeline.md` - video pipeline behavior and outputs
+- `docs/dashboard.md` - dashboard behavior
+- `docs/persistence_query.md` - persistence/query details
+- `docs/overview.md` - high-level original spec
