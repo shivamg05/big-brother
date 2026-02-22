@@ -1000,6 +1000,14 @@ def _dashboard_html() -> str:
       overflow-wrap: anywhere;
       word-break: break-word;
     }
+    .chat-greeting-cursor {
+      display: inline-block;
+      animation: chatCursorBlink 0.9s steps(1, end) infinite;
+    }
+    @keyframes chatCursorBlink {
+      0%, 49% { opacity: 1; }
+      50%, 100% { opacity: 0; }
+    }
     .chat-text.markdown-body {
       white-space: normal;
     }
@@ -1423,6 +1431,10 @@ def _dashboard_html() -> str:
       const episodesViewportRef = useRef(null);
       const episodesTimelineRef = useRef(null);
       const typingIntervalsRef = useRef(new Map());
+      const greetingTimeoutsRef = useRef(new Set());
+      const greetingIntervalsRef = useRef(new Set());
+      const greetingActiveRef = useRef(false);
+      const firstUserMessageSentRef = useRef(false);
       const pendingCenterTimeRef = useRef(null);
       const zoomAnimRafRef = useRef(0);
 
@@ -1437,6 +1449,41 @@ def _dashboard_html() -> str:
       function clearAllTypingIntervals() {
         for (const handle of typingIntervalsRef.current.values()) clearInterval(handle);
         typingIntervalsRef.current.clear();
+      }
+
+      function clearGreetingTimers() {
+        greetingActiveRef.current = false;
+        for (const handle of greetingTimeoutsRef.current.values()) clearTimeout(handle);
+        greetingTimeoutsRef.current.clear();
+        for (const handle of greetingIntervalsRef.current.values()) clearInterval(handle);
+        greetingIntervalsRef.current.clear();
+      }
+
+      function setGreetingTimeout(fn, delayMs) {
+        const handle = setTimeout(() => {
+          greetingTimeoutsRef.current.delete(handle);
+          fn();
+        }, delayMs);
+        greetingTimeoutsRef.current.add(handle);
+        return handle;
+      }
+
+      function setGreetingInterval(fn, delayMs) {
+        const handle = setInterval(fn, delayMs);
+        greetingIntervalsRef.current.add(handle);
+        return handle;
+      }
+
+      function clearGreetingInterval(handle) {
+        clearInterval(handle);
+        greetingIntervalsRef.current.delete(handle);
+      }
+
+      function stopGreetingLoop() {
+        clearGreetingTimers();
+        setChatHistory((prev) => prev.map((m) => (
+          m.id === 0 ? { ...m, isTyping: false, showCursor: false, visible: true } : m
+        )));
       }
 
       function animateAssistantMessage(id, fullText, reasoning) {
@@ -1466,6 +1513,8 @@ def _dashboard_html() -> str:
       function injectGreeting() {
         const greetingId = 0;
         const greeting = CHAT_GREETINGS[Math.floor(Math.random() * CHAT_GREETINGS.length)];
+        clearGreetingTimers();
+        greetingActiveRef.current = true;
         setChatHistory([
           {
             id: greetingId,
@@ -1473,9 +1522,52 @@ def _dashboard_html() -> str:
             text: "",
             reasoning: "",
             isTyping: true,
+            showCursor: true,
+            isGreeting: true,
+            visible: true,
           },
         ]);
-        animateAssistantMessage(greetingId, greeting, "");
+        const target = String(greeting || "");
+        let cursor = 0;
+
+        const typePhase = () => {
+          if (!greetingActiveRef.current || firstUserMessageSentRef.current) return;
+          setChatHistory((prev) => prev.map((m) => (
+            m.id === greetingId
+              ? { ...m, text: "", isTyping: true, showCursor: true, visible: true }
+              : m
+          )));
+          cursor = 0;
+          const handle = setGreetingInterval(() => {
+            if (!greetingActiveRef.current || firstUserMessageSentRef.current) {
+              clearGreetingInterval(handle);
+              return;
+            }
+            cursor = Math.min(target.length, cursor + 1);
+            const done = cursor >= target.length;
+            setChatHistory((prev) => prev.map((m) => (
+              m.id === greetingId
+                ? { ...m, text: target.slice(0, cursor), isTyping: !done, showCursor: true, visible: true }
+                : m
+            )));
+            if (!done) return;
+            clearGreetingInterval(handle);
+            setGreetingTimeout(() => {
+              if (!greetingActiveRef.current || firstUserMessageSentRef.current) return;
+              setChatHistory((prev) => prev.map((m) => (
+                m.id === greetingId
+                  ? { ...m, isTyping: false, showCursor: false, visible: false }
+                  : m
+              )));
+              setGreetingTimeout(() => {
+                if (!greetingActiveRef.current || firstUserMessageSentRef.current) return;
+                typePhase();
+              }, 300);
+            }, 2500);
+          }, 40);
+        };
+
+        typePhase();
       }
 
       function autoResizeInput(node) {
@@ -1511,9 +1603,11 @@ def _dashboard_html() -> str:
       }, [chatHistory, asking]);
 
       useEffect(() => {
+        firstUserMessageSentRef.current = false;
         setChatHistory([]);
         setAskStatus("");
         clearAllTypingIntervals();
+        clearGreetingTimers();
         setEventPhaseFilter("all");
         setEventActionFilter("all");
         setEventToolFilter("all");
@@ -1523,7 +1617,10 @@ def _dashboard_html() -> str:
         injectGreeting();
       }, [run]);
 
-      useEffect(() => () => clearAllTypingIntervals(), []);
+      useEffect(() => () => {
+        clearAllTypingIntervals();
+        clearGreetingTimers();
+      }, []);
 
       useEffect(() => {
         if (!asking) {
@@ -1560,6 +1657,10 @@ def _dashboard_html() -> str:
         if (!run) return;
         const q = (askInput || "").trim();
         if (!q) return;
+        if (!firstUserMessageSentRef.current) {
+          firstUserMessageSentRef.current = true;
+          stopGreetingLoop();
+        }
         const userMessageId = messageId;
         setMessageId((v) => v + 1);
         setChatHistory((prev) => [...prev, { id: userMessageId, role: "user", text: q }]);
@@ -1964,7 +2065,14 @@ def _dashboard_html() -> str:
                   <div id="chat-thread" className="chat-thread">
                     {chatHistory.map((m) => (
                       <div key={m.id} className={`chat-msg ${m.role === "user" ? "user" : "assistant"}`}>
-                        {m.role === "assistant" ? <MarkdownText text={m.text} /> : <div className="chat-text">{m.text}</div>}
+                        {m.role === "assistant" ? (
+                          m.isGreeting ? (
+                            <div className="chat-text" style={{ opacity: m.visible === false ? 0 : 1, transition: "opacity 260ms ease" }}>
+                              {m.text}
+                              {m.showCursor ? <span className="chat-greeting-cursor">|</span> : null}
+                            </div>
+                          ) : <MarkdownText text={m.text} />
+                        ) : <div className="chat-text">{m.text}</div>}
                         {m.role !== "user" && showReasoning && m.reasoning ? (
                           <pre style={{ marginTop: 8 }}>
 {`Reasoning
