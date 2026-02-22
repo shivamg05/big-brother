@@ -340,7 +340,7 @@ def _dashboard_html() -> str:
       margin: 0;
       background: var(--bg);
       color: var(--text);
-      font-family: "Inter", "Avenir Next", "Segoe UI", sans-serif;
+      font-family: "Iowan Old Style", "Baskerville", "Times New Roman", serif;
       line-height: 1.45;
       min-height: 100vh;
     }
@@ -547,6 +547,7 @@ def _dashboard_html() -> str:
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 14px;
+      font-family: "Inter", "Avenir Next", "Segoe UI", sans-serif;
     }
     .metric {
       padding: 18px 18px 14px;
@@ -843,7 +844,8 @@ def _dashboard_html() -> str:
     }
     .chat-input-wrap .input::placeholder {
       color: rgba(255,255,255,0.82);
-      font-weight: 700;
+      font-weight: 400;
+      font-family: "Iowan Old Style", "Baskerville", "Times New Roman", serif;
     }
     .modal-backdrop {
       position: fixed;
