@@ -458,6 +458,11 @@ def _dashboard_html() -> str:
       border: 1px solid #c8ddd5;
       padding: 2px 8px;
     }
+    .tab-btn.active .tab-count {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
     .stats-list {
       display: grid;
       gap: 10px;
@@ -1540,7 +1545,7 @@ def _dashboard_html() -> str:
       const activePhaseSub = isFinished
         ? "Session completed"
         : (latestEvent ? `${activePhasePct}% of recent time` : `${topPhaseCount} events in recent window`);
-      const idleBarColor = idlePct < 15 ? "#3c8f61" : (idlePct <= 40 ? "#c27a20" : "#bf3f3a");
+      const idleBarColor = "var(--accent)";
 
       const navItems = [
         { key: "dashboard", label: "Dashboard" },
