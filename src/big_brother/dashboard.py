@@ -812,6 +812,7 @@ def _dashboard_html() -> str:
     }
     .chat-input-wrap .input::placeholder {
       color: rgba(255,255,255,0.82);
+      font-weight: 700;
     }
     .modal-backdrop {
       position: fixed;
