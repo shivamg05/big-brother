@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from big_brother.dashboard import create_app
 from big_brother.schema import SubtaskEvent
+from big_brother.sql_agent import SQLAgent
 from big_brother.storage import MemoryStore
 
 
@@ -69,16 +70,7 @@ def test_dashboard_snapshot_and_frame(tmp_path: Path) -> None:
     )
     db.close()
 
-    class _FakeNLEngine:
-        def ask(self, *, api, question, default_worker_id):
-            return {
-                "question": question,
-                "structured_query": {"query_type": "events", "start_ts": 0, "end_ts": 10},
-                "result": api.get_events(start_ts=0, end_ts=10, worker_id=default_worker_id),
-                "answer": "Found matching events.",
-            }
-
-    app = create_app(outputs_dir=outputs_dir, videos_dir=videos_dir, nl_engine=_FakeNLEngine())
+    app = create_app(outputs_dir=outputs_dir, videos_dir=videos_dir, nl_engine=None)
     client = TestClient(app)
 
     runs = client.get("/api/runs")
@@ -111,11 +103,23 @@ def test_dashboard_snapshot_and_frame(tmp_path: Path) -> None:
     q_metric_body = q_metric.json()
     assert q_metric_body["result"]["tool_usage_seconds"] >= 2.0
 
-    ask = client.get("/api/ask", params={"run": "t1", "q": "what happened in the first 10 seconds?"})
+    with (
+        patch.object(SQLAgent, "__post_init__", lambda self: None),
+        patch.object(
+            SQLAgent,
+            "_generate_json",
+            return_value={
+                "sql": "SELECT action FROM Events WHERE worker_id = 'worker-1' ORDER BY t_start LIMIT 20",
+                "explanation": "List event actions.",
+            },
+        ),
+        patch.object(SQLAgent, "_generate_text", return_value="Found matching events."),
+    ):
+        ask = client.get("/api/ask", params={"run": "t1", "q": "what happened in the first 10 seconds?"})
     assert ask.status_code == 200
     ask_body = ask.json()
     assert ask_body["answer"] == "Found matching events."
-    assert ask_body["structured_query"]["query_type"] == "events"
+    assert ask_body["engine"] == "sql_agent"
 
 
 def test_add_worker_upload_creates_video_and_run_dir(tmp_path: Path) -> None:
@@ -150,3 +154,108 @@ def test_add_worker_upload_creates_video_and_run_dir(tmp_path: Path) -> None:
     runs = client.get("/api/runs")
     assert runs.status_code == 200
     assert "juan_uribe" in runs.json()["runs"]
+
+
+def test_ask_uses_sql_agent_when_available(tmp_path: Path) -> None:
+    outputs_dir = tmp_path / "outputs"
+    videos_dir = tmp_path / "videos"
+    run_dir = outputs_dir / "t1"
+    run_dir.mkdir(parents=True)
+    videos_dir.mkdir(parents=True)
+
+    db = MemoryStore(db_path=run_dir / "memory.db")
+    db.append_event(
+        SubtaskEvent.from_model_output(
+            {
+                "phase": "execute",
+                "action": "drill",
+                "tool": "drill",
+                "materials": ["metal"],
+                "people_nearby": "0",
+                "speaking": "none",
+                "location_hint": "station_a",
+                "confidence": 0.95,
+                "evidence": "sql-agent-test",
+            },
+            t_start=1.0,
+            t_end=3.0,
+            worker_id="t1",
+            video_id="t1",
+            source_window_id="w1",
+        )
+    )
+    db.close()
+
+    app = create_app(outputs_dir=outputs_dir, videos_dir=videos_dir, nl_engine=None)
+    client = TestClient(app)
+
+    with (
+        patch.object(SQLAgent, "__post_init__", lambda self: None),
+        patch.object(
+            SQLAgent,
+            "_generate_json",
+            return_value={
+                "sql": "SELECT action, tool FROM Events WHERE worker_id = 't1' ORDER BY t_start LIMIT 10",
+                "explanation": "List actions for worker t1.",
+            },
+        ),
+        patch.object(SQLAgent, "_generate_text", return_value="Worker t1 used the drill."),
+    ):
+        resp = client.get("/api/ask", params={"run": "t1", "q": "what happened?"})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["engine"] == "sql_agent"
+    assert body["answer"] == "Worker t1 used the drill."
+    assert body["sql_query"].startswith("SELECT action, tool FROM Events")
+    assert body["result_count"] == 1
+    assert body["results"][0]["action"] == "drill"
+
+
+def test_ask_returns_error_when_sql_agent_fails(tmp_path: Path) -> None:
+    outputs_dir = tmp_path / "outputs"
+    videos_dir = tmp_path / "videos"
+    run_dir = outputs_dir / "t1"
+    run_dir.mkdir(parents=True)
+    videos_dir.mkdir(parents=True)
+
+    db = MemoryStore(db_path=run_dir / "memory.db")
+    db.append_event(
+        SubtaskEvent.from_model_output(
+            {
+                "phase": "setup",
+                "action": "measure",
+                "tool": "tape",
+                "materials": ["wood"],
+                "people_nearby": "1",
+                "speaking": "brief",
+                "location_hint": "station_b",
+                "confidence": 0.9,
+                "evidence": "fallback-test",
+            },
+            t_start=0.0,
+            t_end=2.0,
+            worker_id="t1",
+            video_id="t1",
+            source_window_id="w2",
+        )
+    )
+    db.close()
+
+    app = create_app(outputs_dir=outputs_dir, videos_dir=videos_dir, nl_engine=None)
+    client = TestClient(app)
+
+    with (
+        patch.object(SQLAgent, "__post_init__", lambda self: None),
+        patch.object(
+            SQLAgent,
+            "_generate_json",
+            return_value={"sql": "SELECT * FROM MissingTable", "explanation": "broken query"},
+        ),
+    ):
+        resp = client.get("/api/ask", params={"run": "t1", "q": "what happened?"})
+
+    assert resp.status_code == 400
+    body = resp.json()
+    assert "SQL query failed. The SQL agent could not answer this question" in body["detail"]
+    assert "SQL agent failed after" in body["detail"]

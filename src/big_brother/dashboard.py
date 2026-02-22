@@ -16,6 +16,7 @@ import uvicorn
 from .nl_query import GeminiNLQueryEngine
 from .query import QueryAPI
 from .query_cli import run_query
+from .sql_agent import SQLAgent
 from .storage import MemoryStore
 
 
@@ -97,7 +98,7 @@ def _extract_frame_jpeg(video_path: Path, t_seconds: float) -> bytes:
 
 def create_app(*, outputs_dir: Path, videos_dir: Path, nl_engine: GeminiNLQueryEngine | None = None) -> FastAPI:
     app = FastAPI(title="Big Brother Dashboard")
-    engine = nl_engine
+    _ = nl_engine
 
     @app.get("/", response_class=HTMLResponse)
     def home() -> str:
@@ -219,28 +220,19 @@ def create_app(*, outputs_dir: Path, videos_dir: Path, nl_engine: GeminiNLQueryE
         q: str = Query(..., min_length=2),
         worker_id: str | None = Query(None),
     ) -> JSONResponse:
-        nonlocal engine
         db_path = outputs_dir / run / "memory.db"
         if not db_path.exists():
             raise HTTPException(status_code=404, detail=f"No memory DB found for run '{run}' at {db_path}")
-        if engine is None:
-            try:
-                engine = GeminiNLQueryEngine()
-            except Exception as exc:
-                raise HTTPException(status_code=400, detail=f"NL engine unavailable: {exc}") from exc
-        store = MemoryStore(db_path=db_path)
+        resolved_worker_id = worker_id or run
         try:
-            api = QueryAPI(store)
-            resolved_worker_id = worker_id or run
-            try:
-                out = engine.ask(api=api, question=q, default_worker_id=resolved_worker_id)
-            except ValueError as exc:
-                raise HTTPException(status_code=400, detail=str(exc)) from exc
-            except Exception as exc:
-                raise HTTPException(status_code=500, detail=f"NL query failed: {exc}") from exc
+            agent = SQLAgent(db_path=str(db_path))
+            out = agent.ask(question=q, default_worker_id=resolved_worker_id)
             return JSONResponse(out)
-        finally:
-            store.close()
+        except Exception as sql_exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"SQL query failed. The SQL agent could not answer this question: {sql_exc}",
+            ) from sql_exc
 
     @app.post("/api/workers")
     async def create_worker(
