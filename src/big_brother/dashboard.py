@@ -566,6 +566,9 @@ def _dashboard_html() -> str:
       letter-spacing: -0.01em;
       color: #1f1c18;
     }
+    .metric-value-tool {
+      font-size: 30px;
+    }
     .metric-sub {
       margin-top: 8px;
       color: var(--muted);
@@ -730,6 +733,30 @@ def _dashboard_html() -> str:
       margin-top: 8px;
       font-size: 12px;
       color: var(--muted);
+      min-height: 14px;
+      display: flex;
+      align-items: center;
+    }
+    .query-indicator {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 14px;
+      min-height: 14px;
+      border-radius: 999px;
+      font-size: 10px;
+      line-height: 1;
+      font-weight: 700;
+    }
+    .query-indicator.done {
+      background: #dcebe5;
+      color: #2f5146;
+      border: 1px solid #c8ddd5;
+    }
+    .query-indicator.error {
+      background: #f8e7e5;
+      color: #8b372f;
+      border: 1px solid #efcbc6;
     }
     .chat-thread {
       margin-top: 10px;
@@ -1073,7 +1100,7 @@ def _dashboard_html() -> str:
         setChatHistory((prev) => [...prev, { id: userMessageId, role: "user", text: q }]);
         setAskInput("");
         setAsking(true);
-        setAskStatus("Running natural-language query...");
+        setAskStatus("");
         try {
           const params = new URLSearchParams();
           params.set("run", run);
@@ -1088,7 +1115,7 @@ def _dashboard_html() -> str:
               ...prev,
               { id: errId, role: "assistant", text: `Error: ${data.detail || "Request failed"}`, reasoning: "" },
             ]);
-            setAskStatus("Query failed.");
+            setAskStatus("error");
             return;
           }
           const assistantId = userMessageId + 2000000;
@@ -1101,14 +1128,14 @@ def _dashboard_html() -> str:
               reasoning: data.reasoning_trace || "",
             },
           ]);
-          setAskStatus("Query completed.");
+          setAskStatus("done");
         } catch (e) {
           const errId = userMessageId + 3000000;
           setChatHistory((prev) => [
             ...prev,
             { id: errId, role: "assistant", text: `Error: ${e}`, reasoning: "" },
           ]);
-          setAskStatus("Query failed.");
+          setAskStatus("error");
         } finally {
           setAsking(false);
         }
@@ -1312,7 +1339,7 @@ def _dashboard_html() -> str:
                   </div>
                   <div className="card metric">
                     <div className="metric-label">Primary Tool</div>
-                    <div className="metric-value">{fmtLabel(topTool)}</div>
+                    <div className="metric-value metric-value-tool">{fmtLabel(topTool)}</div>
                     <div className="metric-sub">{topToolCount} events in recent window</div>
                     <div className="bar-line"><div className="bar-fill" style={{ width: `${Math.min(100, topToolCount * 6)}%` }} /></div>
                   </div>
@@ -1353,12 +1380,15 @@ ${m.reasoning}`}
                     ) : null}
                   </div>
                   <div className="chat-input-wrap">
-                    <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
-                      <input id="showReasoning" type="checkbox" checked={showReasoning} onChange={(e) => setShowReasoning(e.target.checked)} />
-                      <label htmlFor="showReasoning" className="small">Show reasoning trace</label>
+                    <div style={{ marginTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }} aria-live="polite">
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <input id="showReasoning" type="checkbox" checked={showReasoning} onChange={(e) => setShowReasoning(e.target.checked)} />
+                        <label htmlFor="showReasoning" className="small">Show reasoning trace</label>
+                      </div>
+                      {askStatus === "done" ? <span className="query-indicator done" title="Query complete">✓</span> : null}
+                      {askStatus === "error" ? <span className="query-indicator error" title="Query failed">!</span> : null}
                     </div>
-                    <div className="chat-meta">{askStatus}</div>
-                    <div className="ask-row" style={{ marginTop: 8, gap: 6, gridTemplateColumns: "1fr 44px" }}>
+                    <div className="ask-row" style={{ marginTop: 6, gap: 6, gridTemplateColumns: "1fr 48px" }}>
                       <input
                         className="input"
                         value={askInput}
@@ -1370,6 +1400,8 @@ ${m.reasoning}`}
                           borderColor: "var(--accent)",
                           color: "#fff",
                           boxShadow: "none",
+                          padding: "12px 16px",
+                          fontSize: "15px",
                         }}
                       />
                       <button
@@ -1377,7 +1409,7 @@ ${m.reasoning}`}
                         disabled={asking}
                         onClick={runAsk}
                         style={{
-                          padding: "10px 0",
+                          padding: "12px 0",
                           borderRadius: "999px",
                           background: "var(--accent)",
                           borderColor: "var(--accent)",
