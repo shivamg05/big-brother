@@ -17,7 +17,7 @@ def main() -> int:
     parser.add_argument("--video", default=None, help="Single video filename in videos-dir to process.")
     parser.add_argument("--window-size", type=float, default=15.0, help="Window size in seconds.")
     parser.add_argument("--overlap", type=float, default=0.0, help="Overlap between windows in seconds.")
-    parser.add_argument("--frames-per-window", type=int, default=3, help="Sampled frames per window.")
+    parser.add_argument("--frames-per-window", type=int, default=15, help="Sampled frames per window.")
     parser.add_argument(
         "--requests-per-minute",
         type=int,

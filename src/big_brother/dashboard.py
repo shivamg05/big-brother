@@ -967,7 +967,7 @@ def _dashboard_html() -> str:
               <span className="chip">Action: {e.action}</span>
               <span className="chip">Tool: {e.tool}</span>
             </div>
-            <div className="small">{fmtTime(e.t_start)} -> {fmtTime(e.t_end)}</div>
+            <div className="small">{fmtTime(e.t_start)} → {fmtTime(e.t_end)}</div>
           </div>
           <div className="item-body">
             <img src={e.frame_url} loading="lazy" />
@@ -984,7 +984,7 @@ def _dashboard_html() -> str:
         <div className="item">
           <div className="item-head">
             <div style={{ fontWeight: 700, fontSize: 15 }}>{fmtLabel(ep.label)}</div>
-            <div className="small">{fmtTime(ep.t_start)} -> {fmtTime(ep.t_end)}</div>
+            <div className="small">{fmtTime(ep.t_start)} → {fmtTime(ep.t_end)}</div>
           </div>
           <div style={{ padding: 11 }} className="kv">
             <div>{ep.reasoning || "No reasoning available."}</div>
@@ -1320,7 +1320,7 @@ def _dashboard_html() -> str:
                     <div className="metric-label">Last Episode</div>
                     <div className="metric-value">{lastEpisode ? fmtLabel(lastEpisode.label) : "Unknown"}</div>
                     <div className="metric-sub">
-                      {lastEpisode ? `${fmtTime(lastEpisode.t_start)} -> ${fmtTime(lastEpisode.t_end)}` : "No episodes yet"}
+                      {lastEpisode ? `${fmtTime(lastEpisode.t_start)} → ${fmtTime(lastEpisode.t_end)}` : "No episodes yet"}
                     </div>
                     <div className="bar-line"><div className="bar-fill" style={{ width: lastEpisode ? (isFinished ? "100%" : "75%") : "0%" }} /></div>
                   </div>
@@ -1387,7 +1387,7 @@ ${m.reasoning}`}
                           fontWeight: 700,
                         }}
                       >
-                        {asking ? "…" : "→"}
+                        {asking ? "…" : "➜"}
                       </button>
                     </div>
                   </div>

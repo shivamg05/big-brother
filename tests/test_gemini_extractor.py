@@ -219,6 +219,72 @@ def test_gemini_extractor_retries_when_text_missing() -> None:
     assert event.evidence == "success on retry"
 
 
+def test_gemini_extractor_maps_unknown_tool_from_brush_evidence() -> None:
+    class _BrushModels:
+        def generate_content(self, *, model: str, contents: str, config: dict[str, object]) -> _FakeResponse:
+            payload = {
+                "phase": "cleanup",
+                "action": "clean",
+                "tool": "unknown",
+                "materials": ["debris", "concrete"],
+                "people_nearby": "0",
+                "speaking": "none",
+                "location_hint": "same_area",
+                "confidence": 0.82,
+                "evidence": "POV worker holds a small cleaning brush and sweeps debris.",
+            }
+            return _FakeResponse(json.dumps(payload))
+
+    class _BrushClient:
+        def __init__(self) -> None:
+            self.models = _BrushModels()
+
+    extractor = GeminiExtractor(client=_BrushClient(), requests_per_minute=0)
+    event = extractor.extract(
+        sampled_frames=[{"motion": 0.4}],
+        state={},
+        t_start=0.0,
+        t_end=15.0,
+        worker_id="w1",
+        video_id="v1",
+        source_window_id="w-brush",
+    )
+    assert event.tool.value == "cleaning_brush"
+
+
+def test_gemini_extractor_maps_unknown_tool_from_grout_evidence() -> None:
+    class _GroutModels:
+        def generate_content(self, *, model: str, contents: str, config: dict[str, object]) -> _FakeResponse:
+            payload = {
+                "phase": "execute",
+                "action": "clean",
+                "tool": "unknown",
+                "materials": ["tiles", "grout"],
+                "people_nearby": "1",
+                "speaking": "none",
+                "location_hint": "same_area",
+                "confidence": 0.8,
+                "evidence": "POV hand uses a thin tool to clean grout lines between tiles.",
+            }
+            return _FakeResponse(json.dumps(payload))
+
+    class _GroutClient:
+        def __init__(self) -> None:
+            self.models = _GroutModels()
+
+    extractor = GeminiExtractor(client=_GroutClient(), requests_per_minute=0)
+    event = extractor.extract(
+        sampled_frames=[{"motion": 0.4}],
+        state={},
+        t_start=0.0,
+        t_end=15.0,
+        worker_id="w1",
+        video_id="v1",
+        source_window_id="w-grout",
+    )
+    assert event.tool.value == "grout_float"
+
+
 def test_gemini_extractor_falls_back_when_text_missing_persistently() -> None:
     extractor = GeminiExtractor(client=_AlwaysNoTextClient(), requests_per_minute=0, parse_retries=1)
     event = extractor.extract(

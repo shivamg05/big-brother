@@ -101,6 +101,7 @@ class GeminiExtractor:
                 )
         payload = self._extract_payload_with_retries(contents=contents, state=state)
         payload = self._enforce_pov_consistency(payload, state=state)
+        payload = self._normalize_from_evidence(payload)
         return SubtaskEvent.from_model_output(
             payload,
             t_start=t_start,
@@ -209,6 +210,31 @@ Window:
             confidence = 0.0
         payload["confidence"] = min(confidence, 0.5)
         payload["evidence"] = "bystander activity observed; POV worker action unclear"
+        return payload
+
+    @staticmethod
+    def _normalize_from_evidence(payload: dict[str, Any]) -> dict[str, Any]:
+        evidence = str(payload.get("evidence", "")).lower()
+        if not evidence:
+            return payload
+
+        tool = str(payload.get("tool", "unknown"))
+        if tool in {"unknown", ""}:
+            if "wheelbarrow" in evidence and "handle" in evidence:
+                payload["tool"] = "wheelbarrow"
+            elif "grout" in evidence and ("line" in evidence or "tile" in evidence):
+                payload["tool"] = "grout_float"
+            elif "brush" in evidence:
+                payload["tool"] = "cleaning_brush"
+            elif "broom" in evidence or "sweep" in evidence or "sweeping" in evidence:
+                payload["tool"] = "broom"
+
+        action = str(payload.get("action", "unknown"))
+        if action in {"unknown", "other"} and ("sweep" in evidence or "sweeping" in evidence):
+            payload["action"] = "sweep"
+            if str(payload.get("phase", "unknown")) == "unknown":
+                payload["phase"] = "cleanup"
+
         return payload
 
     @staticmethod
