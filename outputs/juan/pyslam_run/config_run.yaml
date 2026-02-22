@@ -1,0 +1,16 @@
+DATASET:
+  type: VIDEO_DATASET
+VIDEO_DATASET:
+  type: video
+  sensor_type: mono
+  base_path: "/Users/adikoul/GitHub/big-brother/videos"
+  settings: "/Users/adikoul/GitHub/big-brother/outputs/juan/pyslam_run/camera_auto.yaml"
+  name: "juan.mp4"
+  timestamps: "/Users/adikoul/GitHub/big-brother/outputs/juan/pyslam_run/timestamps.txt"
+SYSTEM_STATE:
+  load_state: false
+SAVE_TRAJECTORY:
+  save_trajectory: true
+  output_folder: "/Users/adikoul/GitHub/big-brother/outputs/juan/pyslam_run/out"
+  output_basename: "juan"
+  format_type: tum

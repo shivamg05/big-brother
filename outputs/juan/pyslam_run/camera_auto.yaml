@@ -1,0 +1,17 @@
+%YAML:1.0
+Camera.width: 1280
+Camera.height: 720
+Camera.fps: 29.970030
+Camera.RGB: 1
+Camera.fx: 1152.000000
+Camera.fy: 1152.000000
+Camera.cx: 640.000000
+Camera.cy: 360.000000
+Camera.k1: 0.0
+Camera.k2: 0.0
+Camera.p1: 0.0
+Camera.p2: 0.0
+FeatureTracker.shared_local_map_type: STAT
+FeatureTrackerConfig: { name: ORB2, num_features: 5000 }
+LoopDetectorConfig: { name: DBOW3 }
+use_clahe: True
