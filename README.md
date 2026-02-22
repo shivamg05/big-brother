@@ -163,7 +163,7 @@ Supported query types:
 - Persisting both JSONL and SQLite gives good developer ergonomics: human-inspectable logs + machine-queryable state.
 - Episode-level reasoning is stronger when derived from event sequences instead of direct single-frame guesses.
 
-## Next Iteration (Realistic)
+## Next Iteration
 
 A simple, high-impact next step is connecting memory across runs/videos so an LLM can analyze behavior over longer horizons (cross-day/cross-worker retrieval and orchestration), not just one run at a time.
 
