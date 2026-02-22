@@ -253,43 +253,217 @@ def _dashboard_html() -> str:
       color: var(--text);
       font-family: "Inter", "Avenir Next", "Segoe UI", sans-serif;
       line-height: 1.45;
+      min-height: 100vh;
     }
-    .container {
-      max-width: 1240px;
-      margin: 0 auto;
-      padding: 28px 22px 40px;
-      min-width: 0;
-    }
-    .title {
-      font-family: "Iowan Old Style", "Baskerville", "Times New Roman", serif;
-      font-size: clamp(32px, 4vw, 46px);
-      line-height: 1.15;
+    .shell {
+      width: 100%;
+      max-width: none;
       margin: 0;
-      letter-spacing: -0.02em;
-      font-weight: 500;
+      padding: 0;
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      gap: 0;
+      min-height: 100vh;
     }
-    .subtitle {
-      margin-top: 10px;
+    .sidebar {
+      position: sticky;
+      top: 0;
+      align-self: stretch;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      border-radius: 0;
+      box-shadow: none;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .brand {
+      padding: 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .brand-title {
+      margin: 0;
+      font-size: 24px;
+      font-family: "Iowan Old Style", "Baskerville", "Times New Roman", serif;
+      letter-spacing: -0.02em;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .brand-sub {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .sidebar-block {
+      padding: 16px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-block.session {
+      margin-top: auto;
+      border-top: 1px solid var(--border);
+      border-bottom: 0;
+    }
+    .block-label {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .tab-list {
+      display: grid;
+      gap: 8px;
+    }
+    .tab-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border: 1px solid transparent;
+      background: transparent;
+      color: #3e3933;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 15px;
+      text-align: left;
+      cursor: pointer;
+      transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+    }
+    .tab-btn:hover {
+      background: #f3efe8;
+      border-color: #dfd8cc;
+    }
+    .tab-btn.active {
+      background: var(--accent-soft);
+      border-color: #cfddd7;
+      color: #2f5146;
+      font-weight: 600;
+    }
+    .tab-count {
+      font-size: 12px;
+      color: #4c6359;
+      background: #deebe6;
+      border-radius: 999px;
+      border: 1px solid #c8ddd5;
+      padding: 2px 8px;
+    }
+    .stats-list {
+      display: grid;
+      gap: 10px;
+    }
+    .stat-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 14px;
+      color: #3f3a33;
+      padding-top: 8px;
+      border-top: 1px solid #ece5da;
+    }
+    .stat-row:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+    .stat-key { color: var(--muted); }
+    .stat-val { font-weight: 650; }
+    .main {
+      min-width: 0;
+      display: grid;
+      gap: 14px;
+      align-content: start;
+      padding: 18px;
+    }
+    .worker-card {
+      position: relative;
+      display: grid;
+      grid-template-columns: 38px 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 10px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #f7f4ed;
+      min-height: 62px;
+    }
+    .worker-avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: #dfe8e3;
+      color: #2f5146;
+      border: 1px solid #c8d8d0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+    .worker-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: #26221d;
+      line-height: 1.2;
+    }
+    .worker-status-line {
+      margin-top: 3px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #5c675f;
+    }
+    .worker-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #c1b8a7;
+      display: inline-block;
+    }
+    .worker-dot.live { background: #7d8f4f; }
+    .worker-dot.done { background: #486b5f; }
+    .worker-chevron {
+      color: #938b7f;
+      font-size: 14px;
+      padding-right: 4px;
+    }
+    .worker-select-overlay {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .metric {
+      padding: 18px 18px 14px;
+    }
+    .metric-label {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 700;
+    }
+    .metric-value {
+      margin-top: 5px;
+      font-size: 34px;
+      line-height: 1.05;
+      font-weight: 650;
+      letter-spacing: -0.01em;
+      color: #1f1c18;
+    }
+    .metric-sub {
+      margin-top: 8px;
       color: var(--muted);
       font-size: 14px;
-      letter-spacing: 0.02em;
-    }
-    .grid-top {
-      margin-top: 18px;
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 14px;
-    }
-    .grid-main {
-      margin-top: 14px;
-      display: grid;
-      grid-template-columns: 1.3fr 1fr;
-      gap: 14px;
-    }
-    .stack {
-      margin-top: 14px;
-      display: grid;
-      gap: 14px;
     }
     .card {
       background: var(--surface);
@@ -530,11 +704,15 @@ def _dashboard_html() -> str:
       0% { background-position: 100% 0; }
       100% { background-position: 0 0; }
     }
-    @media (max-width: 1024px) {
-      .grid-top, .grid-main { grid-template-columns: 1fr; }
+    @media (max-width: 1100px) {
+      .shell { grid-template-columns: 1fr; }
+      .sidebar { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); }
+      .sidebar-block.session { margin-top: 0; border-top: 1px solid var(--border); }
+      .main { padding: 14px; }
+      .summary-grid { grid-template-columns: 1fr; }
+      .dist { grid-template-columns: 1fr; }
       .item-body { grid-template-columns: 1fr; }
       .item-body img { width: 100%; height: 180px; }
-      .dist { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -560,6 +738,24 @@ def _dashboard_html() -> str:
       const text = String(label || "unknown").replaceAll("_", " ").trim();
       if (!text) return "Unknown";
       return text.split(/\\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+    }
+
+    function workerDisplayName(run) {
+      const text = String(run || "").trim();
+      if (!text) return "No Worker";
+      return text
+        .replaceAll("_", " ")
+        .replaceAll("-", " ")
+        .split(/\\s+/)
+        .map((w) => w ? (w.charAt(0).toUpperCase() + w.slice(1)) : "")
+        .join(" ");
+    }
+
+    function workerInitials(name) {
+      const parts = String(name || "").split(/\\s+/).filter(Boolean);
+      if (parts.length === 0) return "WK";
+      if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+      return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
     }
 
     function DistributionCard({ title, dist }) {
@@ -621,6 +817,7 @@ def _dashboard_html() -> str:
     function App() {
       const [runs, setRuns] = useState([]);
       const [run, setRun] = useState("");
+      const [activeTab, setActiveTab] = useState("dashboard");
       const [snapshot, setSnapshot] = useState(null);
       const [loadingSnapshot, setLoadingSnapshot] = useState(true);
 
@@ -741,123 +938,236 @@ def _dashboard_html() -> str:
 
       const events = useMemo(() => (snapshot?.events || []).slice().reverse(), [snapshot]);
       const episodes = useMemo(() => (snapshot?.labeled_episodes || []).slice().reverse(), [snapshot]);
+      const phaseDist = snapshot?.distributions?.phase || {};
+      const actionDist = snapshot?.distributions?.action || {};
+      const toolDist = snapshot?.distributions?.tool || {};
+
+      function topEntry(dist, opts = {}) {
+        const entries = Object.entries(dist || {});
+        const filtered = opts.skipNone ? entries.filter(([k]) => String(k).toLowerCase() !== "none") : entries;
+        if (filtered.length === 0) return ["unknown", 0];
+        return filtered.sort((a, b) => b[1] - a[1])[0];
+      }
+
+      const [topPhase, topPhaseCount] = topEntry(phaseDist);
+      const [topTool, topToolCount] = topEntry(toolDist, { skipNone: true });
+      const lastEpisode = episodes[0] || null;
+
+      const totalSeconds = events.reduce((acc, e) => acc + Math.max(0, (Number(e.t_end) || 0) - (Number(e.t_start) || 0)), 0);
+      const idleSeconds = events.reduce((acc, e) => {
+        const phase = String(e.phase || "").toLowerCase();
+        const action = String(e.action || "").toLowerCase();
+        const isIdle = phase === "idle" || action === "idle" || action === "wait" || action === "observe";
+        return acc + (isIdle ? Math.max(0, (Number(e.t_end) || 0) - (Number(e.t_start) || 0)) : 0);
+      }, 0);
+      const idlePct = totalSeconds > 0 ? Math.round((idleSeconds / totalSeconds) * 100) : 0;
+      const summaryDuration = Number(snapshot?.summary?.duration_seconds);
+      const totalDurationSeconds = Number.isFinite(summaryDuration) && summaryDuration > 0 ? summaryDuration : totalSeconds;
+
       const isFinished = Boolean(snapshot?.summary && Object.keys(snapshot.summary).length > 0);
-      const statusText = !run
-        ? "No worker selected"
-        : (isFinished ? "Work finished" : "Currently working");
+      const statusText = !run ? "No worker selected" : (isFinished ? "Work finished" : "Currently working");
       const statusClass = !run ? "" : (isFinished ? "done" : "live");
+      const workerName = workerDisplayName(run);
+      const workerTag = statusClass || "live";
+      const activePhaseLabel = isFinished ? "Clocked Out" : fmtLabel(topPhase);
+      const activePhaseSub = isFinished ? "Session completed" : `${topPhaseCount} events in recent window`;
+
+      const navItems = [
+        { key: "dashboard", label: "Dashboard" },
+        { key: "event-log", label: "Event Log", count: snapshot?.event_count || 0 },
+        { key: "episodes", label: "Episodes", count: episodes.length },
+      ];
 
       return (
-        <div className="container">
-          <h1 className="title">Worker Memory</h1>
-          <div className="subtitle">Real-time event memory, episode labels, and query interface.</div>
+        <div className="shell">
+          <aside className="sidebar">
+            <div className="brand">
+              <h1 className="brand-title">WorkerMem</h1>
+              <div className="brand-sub">Memory & Episode Intelligence</div>
+            </div>
 
-          <div className="grid-top">
-            <section className="card">
-              <h2>Select Worker</h2>
-              <div style={{ marginTop: 12 }}>
-                <select className="select" value={run} onChange={(e) => setRun(e.target.value)}>
-                  {runs.length === 0 ? <option>No runs found</option> : runs.map((r) => <option key={r} value={r}>{r}</option>)}
+            <div className="sidebar-block">
+              <div className="block-label">Active Worker</div>
+              <div className="worker-card">
+                <span className="worker-avatar">{workerInitials(workerName)}</span>
+                <div>
+                  <div className="worker-name">{workerName}</div>
+                  <div className="worker-status-line">
+                    <span className={`worker-dot ${workerTag}`}></span>
+                    <span>{statusText}</span>
+                  </div>
+                </div>
+                <span className="worker-chevron">▾</span>
+                <select className="worker-select-overlay" value={run} onChange={(e) => setRun(e.target.value)} aria-label="Select worker">
+                  {runs.length === 0 ? <option>No runs found</option> : runs.map((r) => <option key={r} value={r}>{workerDisplayName(r)}</option>)}
                 </select>
               </div>
-              <div className="status-row">
-                <span className={`status-dot ${statusClass}`}></span>
-                <span>{statusText}</span>
-              </div>
-            </section>
+            </div>
 
-            <section className="chat-card">
-              <div className="chat-input-wrap">
-                <div className="ask-row" style={{ marginTop: 0, gap: 6, gridTemplateColumns: "1fr 44px" }}>
-                  <input
-                    className="input"
-                    value={askInput}
-                    onChange={(e) => setAskInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter" && !asking) runAsk(); }}
-                    placeholder="How long did the worker use a tape measure and why?"
-                    style={{
-                      background: "var(--accent)",
-                      borderColor: "var(--accent)",
-                      color: "#fff",
-                      boxShadow: "none",
-                    }}
-                  />
+            <div className="sidebar-block">
+              <div className="tab-list">
+                {navItems.map((item) => (
                   <button
-                    className="btn"
-                    disabled={asking}
-                    onClick={runAsk}
-                    style={{
-                      padding: "10px 0",
-                      borderRadius: "999px",
-                      background: "var(--accent)",
-                      borderColor: "var(--accent)",
-                      color: "#fff",
-                      fontSize: "18px",
-                      lineHeight: 1,
-                      fontWeight: 700,
-                    }}
+                    key={item.key}
+                    className={`tab-btn ${activeTab === item.key ? "active" : ""}`}
+                    onClick={() => setActiveTab(item.key)}
                   >
-                    {asking ? "…" : "→"}
+                    <span>{item.label}</span>
+                    {Number.isFinite(item.count) ? <span className="tab-count">{item.count}</span> : null}
                   </button>
-                </div>
-                <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
-                  <input id="showReasoning" type="checkbox" checked={showReasoning} onChange={(e) => setShowReasoning(e.target.checked)} />
-                  <label htmlFor="showReasoning" className="small">Show reasoning trace</label>
-                </div>
-                <div className="chat-meta">{askStatus}</div>
+                ))}
               </div>
-              <div id="chat-thread" className="chat-thread">
-                {chatHistory.length === 0 ? <div className="chat-empty">Ask a question to start the conversation.</div> : null}
-                {chatHistory.map((m) => (
-                  <div key={m.id} className={`chat-msg ${m.role === "user" ? "user" : ""}`}>
-                    <div className="chat-role">{m.role === "user" ? "You" : "Assistant"}</div>
-                    <div className="chat-text">{m.text}</div>
-                    {m.role !== "user" && showReasoning && m.reasoning ? (
-                      <pre style={{ marginTop: 8 }}>
+            </div>
+
+            <div className="sidebar-block session">
+              <div className="block-label">Today's Session</div>
+              <div className="stats-list">
+                <div className="stat-row">
+                  <span className="stat-key">Duration</span>
+                  <span className="stat-val">{fmtTime(totalDurationSeconds)}</span>
+                </div>
+                <div className="stat-row">
+                  <span className="stat-key">Events</span>
+                  <span className="stat-val">{snapshot?.event_count || 0}</span>
+                </div>
+                <div className="stat-row">
+                  <span className="stat-key">Episodes</span>
+                  <span className="stat-val">{episodes.length}</span>
+                </div>
+                <div className="stat-row">
+                  <span className="stat-key">Idle Time</span>
+                  <span className="stat-val">{fmtTime(idleSeconds)} ({idlePct}%)</span>
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <main className="main">
+            {activeTab === "dashboard" ? (
+              <>
+                <section className="summary-grid">
+                  <div className="card metric">
+                    <div className="metric-label">Active Phase</div>
+                    <div className="metric-value">{activePhaseLabel}</div>
+                    <div className="metric-sub">{activePhaseSub}</div>
+                    <div className="bar-line"><div className="bar-fill" style={{ width: `${Math.min(100, topPhaseCount * 6)}%` }} /></div>
+                  </div>
+                  <div className="card metric">
+                    <div className="metric-label">Primary Tool</div>
+                    <div className="metric-value">{fmtLabel(topTool)}</div>
+                    <div className="metric-sub">{topToolCount} events in recent window</div>
+                    <div className="bar-line"><div className="bar-fill" style={{ width: `${Math.min(100, topToolCount * 6)}%` }} /></div>
+                  </div>
+                  <div className="card metric">
+                    <div className="metric-label">Last Episode</div>
+                    <div className="metric-value">{lastEpisode ? fmtLabel(lastEpisode.label) : "Unknown"}</div>
+                    <div className="metric-sub">
+                      {lastEpisode ? `${fmtTime(lastEpisode.t_start)} -> ${fmtTime(lastEpisode.t_end)}` : "No episodes yet"}
+                    </div>
+                    <div className="bar-line"><div className="bar-fill" style={{ width: lastEpisode ? "75%" : "0%" }} /></div>
+                  </div>
+                  <div className="card metric">
+                    <div className="metric-label">Idle Time</div>
+                    <div className="metric-value">{idlePct}%</div>
+                    <div className="metric-sub">{fmtTime(idleSeconds)} idle in recent window</div>
+                    <div className="bar-line"><div className="bar-fill" style={{ width: `${idlePct}%` }} /></div>
+                  </div>
+                </section>
+
+                <section className="chat-card">
+                  <div id="chat-thread" className="chat-thread">
+                    {chatHistory.length === 0 ? <div className="chat-empty">Ask a question to start the conversation.</div> : null}
+                    {chatHistory.map((m) => (
+                      <div key={m.id} className={`chat-msg ${m.role === "user" ? "user" : ""}`}>
+                        <div className="chat-role">{m.role === "user" ? "You" : "Assistant"}</div>
+                        <div className="chat-text">{m.text}</div>
+                        {m.role !== "user" && showReasoning && m.reasoning ? (
+                          <pre style={{ marginTop: 8 }}>
 {`Reasoning
 ${m.reasoning}`}
-                      </pre>
+                          </pre>
+                        ) : null}
+                      </div>
+                    ))}
+                    {asking ? (
+                      <div className="chat-msg">
+                        <div className="chat-role">Assistant</div>
+                        <div className="chat-text">Thinking...</div>
+                      </div>
                     ) : null}
                   </div>
-                ))}
-                {asking ? (
-                  <div className="chat-msg">
-                    <div className="chat-role">Assistant</div>
-                    <div className="chat-text">Thinking...</div>
+                  <div className="chat-input-wrap">
+                    <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
+                      <input id="showReasoning" type="checkbox" checked={showReasoning} onChange={(e) => setShowReasoning(e.target.checked)} />
+                      <label htmlFor="showReasoning" className="small">Show reasoning trace</label>
+                    </div>
+                    <div className="chat-meta">{askStatus}</div>
+                    <div className="ask-row" style={{ marginTop: 8, gap: 6, gridTemplateColumns: "1fr 44px" }}>
+                      <input
+                        className="input"
+                        value={askInput}
+                        onChange={(e) => setAskInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter" && !asking) runAsk(); }}
+                        placeholder="Ask about worker activity, episodes, or patterns..."
+                        style={{
+                          background: "var(--accent)",
+                          borderColor: "var(--accent)",
+                          color: "#fff",
+                          boxShadow: "none",
+                        }}
+                      />
+                      <button
+                        className="btn"
+                        disabled={asking}
+                        onClick={runAsk}
+                        style={{
+                          padding: "10px 0",
+                          borderRadius: "999px",
+                          background: "var(--accent)",
+                          borderColor: "var(--accent)",
+                          color: "#fff",
+                          fontSize: "18px",
+                          lineHeight: 1,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {asking ? "…" : "→"}
+                      </button>
+                    </div>
                   </div>
-                ) : null}
-              </div>
-            </section>
-          </div>
+                </section>
 
-          <div className="grid-main">
-            <section className="card">
-              <h2>Event log</h2>
-              <div className="log">
-                {loadingSnapshot && <><div className="skeleton" /><div className="skeleton" /></>}
-                {!loadingSnapshot && events.map((e) => <EventCard key={e.event_id} e={e} />)}
-              </div>
-            </section>
-            <section className="card">
-              <h2>Episodes</h2>
-              <div className="log">
-                {loadingSnapshot && <><div className="skeleton" /><div className="skeleton" /></>}
-                {!loadingSnapshot && episodes.map((ep) => <EpisodeCard key={`${ep.episode_id}-${ep.kind || "k"}`} ep={ep} />)}
-              </div>
-            </section>
-          </div>
+                <section className="card">
+                  <h2>State Distributions</h2>
+                  <div className="dist">
+                    <DistributionCard title="Phase" dist={phaseDist} />
+                    <DistributionCard title="Action" dist={actionDist} />
+                    <DistributionCard title="Tool" dist={toolDist} />
+                  </div>
+                </section>
+              </>
+            ) : null}
 
-          <div className="stack">
-            <section className="card">
-              <h2>State Distributions</h2>
-              <div className="dist">
-                <DistributionCard title="Phase" dist={snapshot?.distributions?.phase || {}} />
-                <DistributionCard title="Action" dist={snapshot?.distributions?.action || {}} />
-                <DistributionCard title="Tool" dist={snapshot?.distributions?.tool || {}} />
-              </div>
-            </section>
-          </div>
+            {activeTab === "event-log" ? (
+              <section className="card">
+                <h2>Event log</h2>
+                <div className="log">
+                  {loadingSnapshot && <><div className="skeleton" /><div className="skeleton" /></>}
+                  {!loadingSnapshot && events.map((e) => <EventCard key={e.event_id} e={e} />)}
+                </div>
+              </section>
+            ) : null}
 
+            {activeTab === "episodes" ? (
+              <section className="card">
+                <h2>Episodes</h2>
+                <div className="log">
+                  {loadingSnapshot && <><div className="skeleton" /><div className="skeleton" /></>}
+                  {!loadingSnapshot && episodes.map((ep) => <EpisodeCard key={`${ep.episode_id}-${ep.kind || "k"}`} ep={ep} />)}
+                </div>
+              </section>
+            ) : null}
+          </main>
         </div>
       );
     }
