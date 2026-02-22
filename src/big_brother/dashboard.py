@@ -522,7 +522,7 @@ def _dashboard_html() -> str:
     }
     .log {
       margin-top: 12px;
-      max-height: 62vh;
+      max-height: 86vh;
       overflow: auto;
       display: grid;
       gap: 10px;
