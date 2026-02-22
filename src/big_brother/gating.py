@@ -5,10 +5,10 @@ from dataclasses import dataclass
 
 @dataclass(slots=True)
 class GatingConfig:
-    motion_threshold: float = 0.2
-    embedding_drift_threshold: float = 0.15
-    audio_spike_threshold: float = 0.25
-    stable_window_limit: int = 2
+    motion_threshold: float = 0.1  # Lowered from 0.2 (50% more sensitive)
+    embedding_drift_threshold: float = 0.08  # Lowered from 0.15 (47% more sensitive)
+    audio_spike_threshold: float = 0.15  # Lowered from 0.25 (40% more sensitive)
+    stable_window_limit: int = 1  # Lowered from 2 (refresh more often)
 
 
 @dataclass(slots=True)

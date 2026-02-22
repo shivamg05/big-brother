@@ -1,0 +1,37 @@
+================================================================================
+🎯 SQL QUERY LOG - 2026-02-22T01:12:02.417471
+================================================================================
+📝 Question: when?
+--------------------------------------------------------------------------------
+
+🔧 Attempt 1/3
+  Calling LLM to generate SQL...
+  LLM Response: {
+  "sql": "SELECT MIN(t_start) AS earliest_event_start, MAX(t_end) AS latest_event_end FROM Events WHERE worker_id = 'manas_eramilli'",
+  "explanation": "Retrieves the earliest start time and the latest end time for events recorded by 'manas_eramilli', providing the overall time span of activities for this worker in the database."
+}
+
+🤖 Generated SQL Query:
+----------------------------------------
+SELECT MIN(t_start) AS earliest_event_start, MAX(t_end) AS latest_event_end FROM Events WHERE worker_id = 'manas_eramilli'
+----------------------------------------
+
+📊 Executing SQL...
+  ✅ Success! Found 1 results
+  First result: {
+  "earliest_event_start": 0.0,
+  "latest_event_end": 1276.0
+}
+
+🗣️ Generating natural language answer...
+💬 Answer: From 00:00 to 21:16.
+
+================================================================================
+📋 FULL RESULTS (up to 50)
+================================================================================
+[
+  {
+    "earliest_event_start": 0.0,
+    "latest_event_end": 1276.0
+  }
+]

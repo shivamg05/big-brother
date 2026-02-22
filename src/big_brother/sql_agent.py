@@ -48,6 +48,23 @@ class SQLAgent:
         self.client = genai.Client(api_key=api_key)
 
     def ask(self, *, question: str, default_worker_id: str | None = None) -> dict[str, Any]:
+        # Create logs directory if it doesn't exist
+        from pathlib import Path
+        log_dir = Path(self.db_path).parent / "sql_logs"
+        log_dir.mkdir(exist_ok=True)
+
+        # Create log file for this query
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        log_file = log_dir / f"sql_{timestamp}.txt"
+
+        # Start logging
+        log_content = []
+        log_content.append("="*80)
+        log_content.append(f"🎯 SQL QUERY LOG - {datetime.now().isoformat()}")
+        log_content.append("="*80)
+        log_content.append(f"📝 Question: {question}")
+        log_content.append("-"*80)
+
         schema = self._schema_context()
         worker_clause = (
             f"Use worker_id = '{default_worker_id}' when question does not explicitly request another worker or all workers."
@@ -72,9 +89,13 @@ class SQLAgent:
         last_sql_error: Exception | None = None
 
         for attempt in range(1, self.max_sql_attempts + 1):
+            log_content.append(f"\n🔧 Attempt {attempt}/{self.max_sql_attempts}")
             try:
+                log_content.append("  Calling LLM to generate SQL...")
                 query_plan = self._generate_json(prompt)
+                log_content.append(f"  LLM Response: {json.dumps(query_plan, indent=2)}")
             except Exception as exc:
+                log_content.append(f"  ❌ LLM Error: {str(exc)}")
                 last_sql_error = exc
                 if attempt == self.max_sql_attempts:
                     break
@@ -87,7 +108,13 @@ class SQLAgent:
                 )
                 continue
             sql_query = str(query_plan.get("sql", "")).strip()
+            log_content.append(f"\n🤖 Generated SQL Query:")
+            log_content.append("-"*40)
+            log_content.append(sql_query)
+            log_content.append("-"*40)
+
             if not sql_query:
+                log_content.append("  ❌ SQL query is empty!")
                 last_sql_error = RuntimeError("SQL agent returned an empty SQL query")
                 prompt = self._repair_prompt(
                     schema=schema,
@@ -98,10 +125,15 @@ class SQLAgent:
                 )
                 continue
             try:
+                log_content.append("\n📊 Executing SQL...")
                 results = self._execute_readonly_sql(sql_query)
+                log_content.append(f"  ✅ Success! Found {len(results)} results")
+                if results and len(results) > 0:
+                    log_content.append(f"  First result: {json.dumps(results[0], default=str, indent=2)}")
                 last_sql_error = None
                 break
             except Exception as exc:
+                log_content.append(f"  ❌ SQL Execution Error: {str(exc)}")
                 last_sql_error = exc
                 if attempt == self.max_sql_attempts:
                     break
@@ -113,6 +145,11 @@ class SQLAgent:
                     default_worker_id=default_worker_id,
                 )
         if last_sql_error is not None:
+            log_content.append(f"\n❌ FAILED after {self.max_sql_attempts} attempts: {last_sql_error}")
+            # Save log file even on failure
+            with open(log_file, 'w') as f:
+                f.write('\n'.join(log_content))
+            print(f"📁 SQL log saved to: {log_file}")
             raise RuntimeError(f"SQL agent failed after {self.max_sql_attempts} attempts: {last_sql_error}") from last_sql_error
 
         answer_prompt = (
@@ -121,9 +158,24 @@ class SQLAgent:
             "Format times as MM:SS when possible.\n"
             f"Question: {question}\n"
             f"SQL: {sql_query}\n"
-            f"Rows: {json.dumps(results[:50], separators=(",", ":"), default=str)}"
+            f"Rows: {json.dumps(results[:50], separators=(',', ':'), default=str)}"
         )
+
+        log_content.append("\n🗣️ Generating natural language answer...")
         answer = self._generate_text(answer_prompt)
+        log_content.append(f"💬 Answer: {answer}")
+
+        # Log full results
+        log_content.append("\n" + "="*80)
+        log_content.append("📋 FULL RESULTS (up to 50)")
+        log_content.append("="*80)
+        log_content.append(json.dumps(results[:50], default=str, indent=2))
+
+        # Save the complete log file
+        with open(log_file, 'w') as f:
+            f.write('\n'.join(log_content))
+
+        print(f"📁 SQL log saved to: {log_file}")
 
         return {
             "question": question,

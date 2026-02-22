@@ -1,0 +1,45 @@
+================================================================================
+🎯 SQL QUERY LOG - 2026-02-22T01:11:30.938082
+================================================================================
+📝 Question: top 3 most used tools?
+--------------------------------------------------------------------------------
+
+🔧 Attempt 1/3
+  Calling LLM to generate SQL...
+  LLM Response: {
+  "sql": "SELECT tool, SUM(MAX(t_end - t_start, 0.0)) AS total_seconds FROM Events WHERE worker_id = 'manas_eramilli' GROUP BY tool ORDER BY total_seconds DESC LIMIT 3",
+  "explanation": "Retrieves the top 3 most used tools by 'manas_eramilli', calculating the total duration each tool was used by summing the difference between 't_end' and 't_start' for all relevant events, and then ordering them by total usage time in descending order."
+}
+
+🤖 Generated SQL Query:
+----------------------------------------
+SELECT tool, SUM(MAX(t_end - t_start, 0.0)) AS total_seconds FROM Events WHERE worker_id = 'manas_eramilli' GROUP BY tool ORDER BY total_seconds DESC LIMIT 3
+----------------------------------------
+
+📊 Executing SQL...
+  ✅ Success! Found 3 results
+  First result: {
+  "tool": "none",
+  "total_seconds": 720.0
+}
+
+🗣️ Generating natural language answer...
+💬 Answer: The top 3 most used tools are: none, level, trowel.
+
+================================================================================
+📋 FULL RESULTS (up to 50)
+================================================================================
+[
+  {
+    "tool": "none",
+    "total_seconds": 720.0
+  },
+  {
+    "tool": "level",
+    "total_seconds": 226.0
+  },
+  {
+    "tool": "trowel",
+    "total_seconds": 225.0
+  }
+]

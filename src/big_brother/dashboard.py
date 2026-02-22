@@ -16,7 +16,7 @@ import uvicorn
 from .nl_query import GeminiNLQueryEngine
 from .query import QueryAPI
 from .query_cli import run_query
-from .sql_agent import SQLAgent
+from .better_sql_agent import BetterSQLAgent
 from .storage import MemoryStore
 
 
@@ -225,7 +225,7 @@ def create_app(*, outputs_dir: Path, videos_dir: Path, nl_engine: GeminiNLQueryE
             raise HTTPException(status_code=404, detail=f"No memory DB found for run '{run}' at {db_path}")
         resolved_worker_id = worker_id or run
         try:
-            agent = SQLAgent(db_path=str(db_path))
+            agent = BetterSQLAgent(db_path=str(db_path))
             out = agent.ask(question=q, default_worker_id=resolved_worker_id)
             return JSONResponse(out)
         except Exception as sql_exc:

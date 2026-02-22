@@ -1,0 +1,15 @@
+================================================================================
+🎯 BETTER SQL AGENT - 2026-02-22T04:13:37.852645
+================================================================================
+📝 Question: What are the top 3 most used tools?
+
+🔮 Generating multiple SQL queries...
+❌ Failed to generate queries: 404 NOT_FOUND. {'error': {'code': 404, 'message': 'models/gemini-1.5-flash-002 is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.', 'status': 'NOT_FOUND'}}
+
+📊 Query 1: fallback
+SQL: SELECT * FROM Events WHERE worker_id = 'juan' LIMIT 10
+✅ Found 10 results
+Sample: {"event_id": "f841c126-3e41-4aff-80f0-4c9199d7896b", "worker_id": "juan", "video_id": "juan", "source_window_id": "juan-w0", "t_start": 0.0, "t_end": 15.0, "phase": "idle", "action": "idle", "tool": "
+
+🧠 Synthesizing answer from all queries...
+💬 Final Answer: Failed to synthesize answer
