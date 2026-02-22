@@ -432,17 +432,73 @@ def _dashboard_html() -> str:
       height: 100%;
       background: var(--accent);
     }
-    .query-grid {
-      margin-top: 12px;
-      display: grid;
-      grid-template-columns: 170px 120px 120px 120px 1fr auto;
-      gap: 8px;
-    }
     .ask-row {
-      margin-top: 12px;
       display: grid;
       grid-template-columns: 1fr auto;
       gap: 8px;
+    }
+    .chat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 14px;
+      transition: opacity 180ms ease, transform 180ms ease;
+      opacity: 0.98;
+    }
+    .chat-meta {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .chat-thread {
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fcfaf6;
+      padding: 10px;
+      height: 280px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      display: grid;
+      gap: 8px;
+    }
+    .chat-msg {
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 10px;
+      padding: 8px 10px;
+      min-width: 0;
+    }
+    .chat-msg.user {
+      background: var(--accent-soft);
+      border-color: #cfddd7;
+    }
+    .chat-role {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+    .chat-text {
+      font-size: 14px;
+      color: #2e2a25;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .chat-empty {
+      font-size: 13px;
+      color: var(--muted);
+      align-self: center;
+      justify-self: center;
+      text-align: center;
+      padding: 12px;
+    }
+    .chat-input-wrap .input::placeholder {
+      color: rgba(255,255,255,0.82);
     }
     pre {
       margin: 10px 0 0;
@@ -476,7 +532,6 @@ def _dashboard_html() -> str:
     }
     @media (max-width: 1024px) {
       .grid-top, .grid-main { grid-template-columns: 1fr; }
-      .query-grid { grid-template-columns: 1fr 1fr; }
       .item-body { grid-template-columns: 1fr; }
       .item-body img { width: 100%; height: 180px; }
       .dist { grid-template-columns: 1fr; }
@@ -570,11 +625,11 @@ def _dashboard_html() -> str:
       const [loadingSnapshot, setLoadingSnapshot] = useState(true);
 
       const [askInput, setAskInput] = useState("");
-      const [askOutput, setAskOutput] = useState("Natural-language answers will appear here.");
       const [askStatus, setAskStatus] = useState("");
       const [asking, setAsking] = useState(false);
+      const [chatHistory, setChatHistory] = useState([]);
       const [showReasoning, setShowReasoning] = useState(false);
-      const [reasoningTrace, setReasoningTrace] = useState("");
+      const [messageId, setMessageId] = useState(1);
 
       useEffect(() => {
         let alive = true;
@@ -594,6 +649,16 @@ def _dashboard_html() -> str:
         tick();
         const id = setInterval(tick, 6000);
         return () => { alive = false; clearInterval(id); };
+      }, [run]);
+
+      useEffect(() => {
+        const node = document.getElementById("chat-thread");
+        if (node) node.scrollTop = node.scrollHeight;
+      }, [chatHistory, asking]);
+
+      useEffect(() => {
+        setChatHistory([]);
+        setAskStatus("");
       }, [run]);
 
       useEffect(() => {
@@ -628,6 +693,10 @@ def _dashboard_html() -> str:
         if (!run) return;
         const q = (askInput || "").trim();
         if (!q) return;
+        const userMessageId = messageId;
+        setMessageId((v) => v + 1);
+        setChatHistory((prev) => [...prev, { id: userMessageId, role: "user", text: q }]);
+        setAskInput("");
         setAsking(true);
         setAskStatus("Running natural-language query...");
         try {
@@ -639,17 +708,31 @@ def _dashboard_html() -> str:
           let data = {};
           try { data = JSON.parse(raw); } catch { data = { detail: raw }; }
           if (!res.ok) {
-            setAskOutput(`Error: ${data.detail || "Request failed"}`);
-            setReasoningTrace("");
+            const errId = userMessageId + 1000000;
+            setChatHistory((prev) => [
+              ...prev,
+              { id: errId, role: "assistant", text: `Error: ${data.detail || "Request failed"}`, reasoning: "" },
+            ]);
             setAskStatus("Query failed.");
             return;
           }
-          setAskOutput(data.answer || "No answer generated.");
-          setReasoningTrace(data.reasoning_trace || "");
+          const assistantId = userMessageId + 2000000;
+          setChatHistory((prev) => [
+            ...prev,
+            {
+              id: assistantId,
+              role: "assistant",
+              text: data.answer || "No answer generated.",
+              reasoning: data.reasoning_trace || "",
+            },
+          ]);
           setAskStatus("Query completed.");
         } catch (e) {
-          setAskOutput(`Error: ${e}`);
-          setReasoningTrace("");
+          const errId = userMessageId + 3000000;
+          setChatHistory((prev) => [
+            ...prev,
+            { id: errId, role: "assistant", text: `Error: ${e}`, reasoning: "" },
+          ]);
           setAskStatus("Query failed.");
         } finally {
           setAsking(false);
@@ -682,6 +765,69 @@ def _dashboard_html() -> str:
                 <span>{statusText}</span>
               </div>
             </section>
+
+            <section className="chat-card">
+              <div className="chat-input-wrap">
+                <div className="ask-row" style={{ marginTop: 0, gap: 6, gridTemplateColumns: "1fr 44px" }}>
+                  <input
+                    className="input"
+                    value={askInput}
+                    onChange={(e) => setAskInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !asking) runAsk(); }}
+                    placeholder="How long did the worker use a tape measure and why?"
+                    style={{
+                      background: "var(--accent)",
+                      borderColor: "var(--accent)",
+                      color: "#fff",
+                      boxShadow: "none",
+                    }}
+                  />
+                  <button
+                    className="btn"
+                    disabled={asking}
+                    onClick={runAsk}
+                    style={{
+                      padding: "10px 0",
+                      borderRadius: "999px",
+                      background: "var(--accent)",
+                      borderColor: "var(--accent)",
+                      color: "#fff",
+                      fontSize: "18px",
+                      lineHeight: 1,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {asking ? "…" : "→"}
+                  </button>
+                </div>
+                <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
+                  <input id="showReasoning" type="checkbox" checked={showReasoning} onChange={(e) => setShowReasoning(e.target.checked)} />
+                  <label htmlFor="showReasoning" className="small">Show reasoning trace</label>
+                </div>
+                <div className="chat-meta">{askStatus}</div>
+              </div>
+              <div id="chat-thread" className="chat-thread">
+                {chatHistory.length === 0 ? <div className="chat-empty">Ask a question to start the conversation.</div> : null}
+                {chatHistory.map((m) => (
+                  <div key={m.id} className={`chat-msg ${m.role === "user" ? "user" : ""}`}>
+                    <div className="chat-role">{m.role === "user" ? "You" : "Assistant"}</div>
+                    <div className="chat-text">{m.text}</div>
+                    {m.role !== "user" && showReasoning && m.reasoning ? (
+                      <pre style={{ marginTop: 8 }}>
+{`Reasoning
+${m.reasoning}`}
+                      </pre>
+                    ) : null}
+                  </div>
+                ))}
+                {asking ? (
+                  <div className="chat-msg">
+                    <div className="chat-role">Assistant</div>
+                    <div className="chat-text">Thinking...</div>
+                  </div>
+                ) : null}
+              </div>
+            </section>
           </div>
 
           <div className="grid-main">
@@ -710,22 +856,8 @@ def _dashboard_html() -> str:
                 <DistributionCard title="Tool" dist={snapshot?.distributions?.tool || {}} />
               </div>
             </section>
-
-            <section className="card">
-              <h2>Live Query</h2>
-              <div className="ask-row">
-                <input className="input" value={askInput} onChange={(e) => setAskInput(e.target.value)} placeholder="How long did the worker use a tape measure and why?" />
-                <button className="btn" disabled={asking} onClick={runAsk}>{asking ? "Asking..." : "Ask"}</button>
-              </div>
-              <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
-                <input id="showReasoning" type="checkbox" checked={showReasoning} onChange={(e) => setShowReasoning(e.target.checked)} />
-                <label htmlFor="showReasoning" className="small">Show reasoning trace</label>
-              </div>
-              <div className="meta" style={{ marginTop: 8 }}>{askStatus}</div>
-              <pre>{askOutput}</pre>
-              {showReasoning && reasoningTrace ? <pre>{reasoningTrace}</pre> : null}
-            </section>
           </div>
+
         </div>
       );
     }
