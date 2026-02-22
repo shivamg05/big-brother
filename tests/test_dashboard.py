@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import cv2
 import numpy as np
@@ -115,3 +116,37 @@ def test_dashboard_snapshot_and_frame(tmp_path: Path) -> None:
     ask_body = ask.json()
     assert ask_body["answer"] == "Found matching events."
     assert ask_body["structured_query"]["query_type"] == "events"
+
+
+def test_add_worker_upload_creates_video_and_run_dir(tmp_path: Path) -> None:
+    outputs_dir = tmp_path / "outputs"
+    videos_dir = tmp_path / "videos"
+    outputs_dir.mkdir(parents=True)
+    videos_dir.mkdir(parents=True)
+
+    app = create_app(outputs_dir=outputs_dir, videos_dir=videos_dir, nl_engine=None)
+    client = TestClient(app)
+
+    with patch("big_brother.dashboard.subprocess.Popen") as mock_popen:
+        fake_proc = MagicMock()
+        fake_proc.pid = 43210
+        mock_popen.return_value = fake_proc
+        resp = client.post(
+            "/api/workers",
+            params={"name": "Juan Uribe", "filename": "session1.mp4"},
+            content=b"fake-video-bytes",
+            headers={"content-type": "application/octet-stream"},
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert body["run"] == "juan_uribe"
+    assert body["video_file"] == "juan_uribe.mp4"
+    assert body["auto_started"] is True
+    assert body["pid"] == 43210
+    assert (videos_dir / "juan_uribe.mp4").exists()
+    assert (outputs_dir / "juan_uribe").is_dir()
+
+    runs = client.get("/api/runs")
+    assert runs.status_code == 200
+    assert "juan_uribe" in runs.json()["runs"]

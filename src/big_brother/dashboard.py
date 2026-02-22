@@ -3,10 +3,13 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import re
+import subprocess
+import sys
 from typing import Any
 
 import cv2
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 import uvicorn
 
@@ -17,6 +20,23 @@ from .storage import MemoryStore
 
 
 VIDEO_EXTENSIONS = [".mp4", ".mov", ".avi", ".mkv", ".m4v"]
+
+
+def _slugify_worker_name(name: str) -> str:
+    cleaned = re.sub(r"[^a-zA-Z0-9]+", "_", name.strip().lower())
+    cleaned = re.sub(r"_+", "_", cleaned).strip("_")
+    return cleaned or "worker"
+
+
+def _unique_run_id(*, outputs_dir: Path, videos_dir: Path, base: str, ext: str) -> str:
+    if not (outputs_dir / base).exists() and not (videos_dir / f"{base}{ext}").exists():
+        return base
+    idx = 2
+    while True:
+        candidate = f"{base}_{idx}"
+        if not (outputs_dir / candidate).exists() and not (videos_dir / f"{candidate}{ext}").exists():
+            return candidate
+        idx += 1
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -222,6 +242,75 @@ def create_app(*, outputs_dir: Path, videos_dir: Path, nl_engine: GeminiNLQueryE
         finally:
             store.close()
 
+    @app.post("/api/workers")
+    async def create_worker(
+        request: Request,
+        name: str = Query(..., min_length=1),
+        filename: str = Query(..., min_length=1),
+    ) -> JSONResponse:
+        raw_name = name.strip()
+        if not raw_name:
+            raise HTTPException(status_code=400, detail="Worker name is required.")
+
+        original_name = filename
+        ext = Path(original_name).suffix.lower()
+        if ext not in VIDEO_EXTENSIONS:
+            allowed = ", ".join(VIDEO_EXTENSIONS)
+            raise HTTPException(status_code=400, detail=f"Unsupported video format '{ext or 'unknown'}'. Allowed: {allowed}")
+
+        payload = await request.body()
+        if not payload:
+            raise HTTPException(status_code=400, detail="Uploaded video body is empty.")
+
+        videos_dir.mkdir(parents=True, exist_ok=True)
+        outputs_dir.mkdir(parents=True, exist_ok=True)
+
+        base_run = _slugify_worker_name(raw_name)
+        run_id = _unique_run_id(outputs_dir=outputs_dir, videos_dir=videos_dir, base=base_run, ext=ext)
+        video_path = videos_dir / f"{run_id}{ext}"
+        output_run_dir = outputs_dir / run_id
+        output_run_dir.mkdir(parents=True, exist_ok=True)
+
+        with video_path.open("wb") as f:
+            f.write(payload)
+
+        log_path = output_run_dir / "pipeline.log"
+        cmd = [
+            sys.executable,
+            "-m",
+            "big_brother.cli",
+            "--videos-dir",
+            str(videos_dir),
+            "--video",
+            video_path.name,
+            "--output-dir",
+            str(outputs_dir),
+            "--extractor",
+            "gemini",
+            "--episode-labeler",
+            "gemini",
+        ]
+        with log_path.open("ab") as log_f:
+            proc = subprocess.Popen(  # noqa: S603
+                cmd,
+                stdout=log_f,
+                stderr=subprocess.STDOUT,
+                cwd=str(Path(__file__).resolve().parents[2]),
+                start_new_session=True,
+            )
+
+        return JSONResponse(
+            {
+                "ok": True,
+                "run": run_id,
+                "worker_name": raw_name,
+                "video_file": video_path.name,
+                "auto_started": True,
+                "pid": proc.pid,
+                "log_file": str(log_path),
+            }
+        )
+
     return app
 
 
@@ -315,6 +404,23 @@ def _dashboard_html() -> str:
     .tab-list {
       display: grid;
       gap: 8px;
+    }
+    .add-worker-btn {
+      margin-top: 10px;
+      width: 100%;
+      border: 1px solid #c8d6cf;
+      background: #edf4f1;
+      color: #2f5146;
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 120ms ease, border-color 120ms ease;
+    }
+    .add-worker-btn:hover {
+      background: #e5efea;
+      border-color: #b9cec4;
     }
     .tab-btn {
       width: 100%;
@@ -674,6 +780,73 @@ def _dashboard_html() -> str:
     .chat-input-wrap .input::placeholder {
       color: rgba(255,255,255,0.82);
     }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(27, 23, 18, 0.28);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 40;
+    }
+    .modal {
+      width: min(560px, 100%);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 12px 32px rgba(24, 20, 14, 0.18);
+      padding: 16px;
+    }
+    .modal-title {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: -0.01em;
+      font-family: "Iowan Old Style", "Baskerville", "Times New Roman", serif;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .modal-sub {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .dropzone {
+      margin-top: 10px;
+      border: 1px dashed #c7beb1;
+      border-radius: 12px;
+      background: #faf7f1;
+      min-height: 122px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: #6f685d;
+      padding: 14px;
+      cursor: pointer;
+      transition: border-color 120ms ease, background 120ms ease;
+    }
+    .dropzone.active {
+      border-color: #9eb7ac;
+      background: #f1f7f3;
+    }
+    .dropzone input { display: none; }
+    .file-note {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .modal-actions {
+      margin-top: 14px;
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    .modal-error {
+      margin-top: 8px;
+      color: #9b3a30;
+      font-size: 12px;
+    }
     pre {
       margin: 10px 0 0;
       border-radius: 12px;
@@ -722,7 +895,7 @@ def _dashboard_html() -> str:
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script type="text/babel">
-    const { useEffect, useMemo, useState } = React;
+    const { useEffect, useMemo, useRef, useState } = React;
 
     function fmtTime(seconds) {
       const total = Math.max(0, Math.floor(Number(seconds) || 0));
@@ -827,6 +1000,13 @@ def _dashboard_html() -> str:
       const [chatHistory, setChatHistory] = useState([]);
       const [showReasoning, setShowReasoning] = useState(false);
       const [messageId, setMessageId] = useState(1);
+      const [addWorkerOpen, setAddWorkerOpen] = useState(false);
+      const [newWorkerName, setNewWorkerName] = useState("");
+      const [newVideoFile, setNewVideoFile] = useState(null);
+      const [addWorkerStatus, setAddWorkerStatus] = useState("");
+      const [addingWorker, setAddingWorker] = useState(false);
+      const [dragActive, setDragActive] = useState(false);
+      const fileInputRef = useRef(null);
 
       useEffect(() => {
         let alive = true;
@@ -868,15 +1048,7 @@ def _dashboard_html() -> str:
             if (!res.ok) return;
             const data = await res.json();
             if (!alive) return;
-            setSnapshot((prev) => {
-              if (!prev) return data;
-              const same =
-                prev.event_count === data.event_count &&
-                prev.episode_count === data.episode_count &&
-                prev.window_count === data.window_count &&
-                prev.run === data.run;
-              return same ? prev : data;
-            });
+            setSnapshot(data);
           } finally {
             if (alive && showLoading) setLoadingSnapshot(false);
           }
@@ -936,6 +1108,68 @@ def _dashboard_html() -> str:
         }
       }
 
+      function openAddWorker() {
+        setAddWorkerOpen(true);
+        setNewWorkerName("");
+        setNewVideoFile(null);
+        setAddWorkerStatus("");
+        setDragActive(false);
+      }
+
+      function closeAddWorker() {
+        if (addingWorker) return;
+        setAddWorkerOpen(false);
+      }
+
+      function onDropVideo(ev) {
+        ev.preventDefault();
+        setDragActive(false);
+        const files = ev.dataTransfer?.files;
+        if (!files || files.length === 0) return;
+        setNewVideoFile(files[0]);
+      }
+
+      async function submitAddWorker() {
+        const trimmed = (newWorkerName || "").trim();
+        if (!trimmed) {
+          setAddWorkerStatus("Please enter the worker name.");
+          return;
+        }
+        if (!newVideoFile) {
+          setAddWorkerStatus("Please upload a video file.");
+          return;
+        }
+        setAddingWorker(true);
+        setAddWorkerStatus("Uploading video...");
+        try {
+          const params = new URLSearchParams();
+          params.set("name", trimmed);
+          params.set("filename", newVideoFile.name || "session.mp4");
+          const res = await fetch(`/api/workers?${params.toString()}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/octet-stream" },
+            body: newVideoFile,
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            setAddWorkerStatus(data.detail || "Failed to add worker.");
+            return;
+          }
+          const nextRun = data.run;
+          setRuns((prev) => {
+            const merged = Array.from(new Set([...(prev || []), nextRun]));
+            return merged.sort();
+          });
+          setRun(nextRun);
+          setAddWorkerStatus(`Worker created. Auto-run started (pid ${data.pid || "n/a"}).`);
+          setAddWorkerOpen(false);
+        } catch (err) {
+          setAddWorkerStatus(`Upload failed: ${err}`);
+        } finally {
+          setAddingWorker(false);
+        }
+      }
+
       const events = useMemo(() => (snapshot?.events || []).slice().reverse(), [snapshot]);
       const episodes = useMemo(() => (snapshot?.labeled_episodes || []).slice().reverse(), [snapshot]);
       const phaseDist = snapshot?.distributions?.phase || {};
@@ -951,7 +1185,7 @@ def _dashboard_html() -> str:
 
       const [topPhase, topPhaseCount] = topEntry(phaseDist);
       const [topTool, topToolCount] = topEntry(toolDist, { skipNone: true });
-      const lastEpisode = episodes[0] || null;
+      const latestEvent = events[0] || null;
 
       const totalSeconds = events.reduce((acc, e) => acc + Math.max(0, (Number(e.t_end) || 0) - (Number(e.t_start) || 0)), 0);
       const idleSeconds = events.reduce((acc, e) => {
@@ -965,12 +1199,17 @@ def _dashboard_html() -> str:
       const totalDurationSeconds = Number.isFinite(summaryDuration) && summaryDuration > 0 ? summaryDuration : totalSeconds;
 
       const isFinished = Boolean(snapshot?.summary && Object.keys(snapshot.summary).length > 0);
+      const completedEpisodes = episodes.filter((ep) => String(ep.kind || "") === "labeled");
+      const finalClosedEpisodes = episodes.filter((ep) => String(ep.kind || "") === "final_closed");
+      const lastEpisode = completedEpisodes[0] || (isFinished ? (finalClosedEpisodes[0] || null) : null);
       const statusText = !run ? "No worker selected" : (isFinished ? "Work finished" : "Currently working");
       const statusClass = !run ? "" : (isFinished ? "done" : "live");
       const workerName = workerDisplayName(run);
       const workerTag = statusClass || "live";
-      const activePhaseLabel = isFinished ? "Clocked Out" : fmtLabel(topPhase);
-      const activePhaseSub = isFinished ? "Session completed" : `${topPhaseCount} events in recent window`;
+      const activePhaseLabel = isFinished ? "Clocked Out" : fmtLabel(latestEvent?.phase || topPhase);
+      const activePhaseSub = isFinished
+        ? "Session completed"
+        : (latestEvent ? `${fmtTime(latestEvent.t_start)} -> ${fmtTime(latestEvent.t_end)}` : `${topPhaseCount} events in recent window`);
 
       const navItems = [
         { key: "dashboard", label: "Dashboard" },
@@ -1002,6 +1241,7 @@ def _dashboard_html() -> str:
                   {runs.length === 0 ? <option>No runs found</option> : runs.map((r) => <option key={r} value={r}>{workerDisplayName(r)}</option>)}
                 </select>
               </div>
+              <button className="add-worker-btn" onClick={openAddWorker}>+ Add Worker Session</button>
             </div>
 
             <div className="sidebar-block">
@@ -1168,6 +1408,54 @@ ${m.reasoning}`}
               </section>
             ) : null}
           </main>
+
+          {addWorkerOpen ? (
+            <div className="modal-backdrop" onClick={closeAddWorker}>
+              <div className="modal" onClick={(e) => e.stopPropagation()}>
+                <h3 className="modal-title">Add New Worker Session</h3>
+                <div className="modal-sub">Enter the worker name and upload the first session video.</div>
+
+                <div style={{ marginTop: 12 }}>
+                  <div className="small" style={{ marginBottom: 6 }}>Worker Name</div>
+                  <input
+                    className="input"
+                    value={newWorkerName}
+                    onChange={(e) => setNewWorkerName(e.target.value)}
+                    placeholder="e.g., Juan Uribe"
+                  />
+                </div>
+
+                <div
+                  className={`dropzone ${dragActive ? "active" : ""}`}
+                  onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+                  onDragLeave={() => setDragActive(false)}
+                  onDrop={onDropVideo}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <div>
+                    <div>Drag and drop a video here</div>
+                    <div className="file-note">or click to choose a file ({`.mp4, .mov, .avi, .mkv, .m4v`})</div>
+                    {newVideoFile ? <div className="file-note">Selected: {newVideoFile.name}</div> : null}
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".mp4,.mov,.avi,.mkv,.m4v"
+                    onChange={(e) => setNewVideoFile(e.target.files?.[0] || null)}
+                  />
+                </div>
+
+                {addWorkerStatus ? <div className="modal-error">{addWorkerStatus}</div> : null}
+
+                <div className="modal-actions">
+                  <button className="btn-outline" onClick={closeAddWorker} disabled={addingWorker} style={{ width: "auto", padding: "8px 14px" }}>Cancel</button>
+                  <button className="btn" onClick={submitAddWorker} disabled={addingWorker} style={{ width: "auto", padding: "8px 14px" }}>
+                    {addingWorker ? "Uploading..." : "Create Worker"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       );
     }
