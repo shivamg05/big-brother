@@ -722,7 +722,7 @@ def _dashboard_html() -> str:
     }
     .chat-card {
       background: var(--surface);
-      border: 1px solid var(--border);
+      border: 1px solid var(--accent);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       padding: 16px;
@@ -760,7 +760,7 @@ def _dashboard_html() -> str:
     }
     .chat-thread {
       margin-top: 10px;
-      border: 1px solid var(--border);
+      border: 1px solid var(--accent);
       border-radius: 12px;
       background: #fcfaf6;
       padding: 14px;
@@ -844,6 +844,28 @@ def _dashboard_html() -> str:
     .chat-input-wrap .input::placeholder {
       color: rgba(255,255,255,0.82);
       font-weight: 700;
+    }
+    .chat-input-wrap {
+      margin-top: 10px;
+      background: var(--accent);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 12px;
+      padding: 10px;
+    }
+    .chat-input-wrap .small {
+      color: #fff;
+    }
+    .chat-input-wrap .input.chat-query-input {
+      background: #fff;
+      border-color: var(--accent);
+      color: var(--text);
+    }
+    .chat-input-wrap .input.chat-query-input::placeholder {
+      color: #6f7f79;
+    }
+    .chat-input-wrap .input.chat-query-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(72, 107, 95, 0.2);
     }
     .modal-backdrop {
       position: fixed;
@@ -1442,7 +1464,7 @@ def _dashboard_html() -> str:
         <div className="shell">
           <aside className="sidebar">
             <div className="brand">
-              <h1 className="brand-title">WorkerMem</h1>
+              <h1 className="brand-title">Big Brother</h1>
               <div className="brand-sub">Memory & Episode Intelligence</div>
             </div>
 
@@ -1566,16 +1588,12 @@ ${m.reasoning}`}
                     </div>
                     <div className="ask-row" style={{ marginTop: 6, gap: 6, gridTemplateColumns: "1fr 48px" }}>
                       <input
-                        className="input"
+                        className="input chat-query-input"
                         value={askInput}
                         onChange={(e) => setAskInput(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter" && !asking) runAsk(); }}
                         placeholder="Ask about worker activity, episodes, or patterns..."
                         style={{
-                          background: "var(--accent)",
-                          borderColor: "var(--accent)",
-                          color: "#fff",
-                          boxShadow: "none",
                           padding: "12px 16px",
                           fontSize: "15px",
                         }}
@@ -1587,9 +1605,9 @@ ${m.reasoning}`}
                         style={{
                           padding: "12px 0",
                           borderRadius: "999px",
-                          background: "var(--accent)",
-                          borderColor: "var(--accent)",
-                          color: "#fff",
+                          background: "#fff",
+                          borderColor: "#fff",
+                          color: "var(--accent)",
                           fontSize: "18px",
                           lineHeight: 1,
                           fontWeight: 700,
