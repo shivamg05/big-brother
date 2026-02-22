@@ -336,6 +336,9 @@ def _dashboard_html() -> str:
       --radius: 14px;
     }
     * { box-sizing: border-box; }
+    input, select, button, textarea {
+      font: inherit;
+    }
     body {
       margin: 0;
       background: var(--bg);
@@ -547,7 +550,7 @@ def _dashboard_html() -> str:
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 14px;
-      font-family: "Inter", "Avenir Next", "Segoe UI", sans-serif;
+      font-family: "Iowan Old Style", "Baskerville", "Times New Roman", serif;
     }
     .metric {
       padding: 18px 18px 14px;
@@ -604,12 +607,13 @@ def _dashboard_html() -> str:
       padding: 10px 14px;
       color: var(--text);
       font-size: 14px;
+      font-family: "Iowan Old Style", "Baskerville", "Times New Roman", serif;
       transition: all 140ms ease;
       outline: none;
     }
     .select:focus, .input:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(72, 107, 95, 0.15);
+      border-color: #cec5b8;
+      box-shadow: 0 0 0 3px rgba(58, 49, 37, 0.12);
     }
     .btn {
       background: var(--accent);
@@ -723,7 +727,7 @@ def _dashboard_html() -> str:
     }
     .chat-card {
       background: var(--surface);
-      border: 1px solid var(--accent);
+      border: 1px solid var(--border);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       padding: 16px;
@@ -797,7 +801,7 @@ def _dashboard_html() -> str:
     .chat-text {
       font-size: 15px;
       line-height: 1.6;
-      font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+      font-family: "Iowan Old Style", "Baskerville", "Times New Roman", serif;
       color: #2e2a25;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
@@ -843,7 +847,7 @@ def _dashboard_html() -> str:
       padding: 12px;
     }
     .chat-input-wrap .input::placeholder {
-      color: rgba(255,255,255,0.82);
+      color: #8a847b;
       font-weight: 400;
       font-family: "Iowan Old Style", "Baskerville", "Times New Roman", serif;
     }
