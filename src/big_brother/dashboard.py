@@ -373,7 +373,7 @@ def _dashboard_html() -> str:
     }
     .brand-title {
       margin: 0;
-      font-size: 24px;
+      font-size: 20px;
       font-family: "Iowan Old Style", "Baskerville", "Times New Roman", serif;
       letter-spacing: -0.02em;
       font-weight: 600;
@@ -722,7 +722,7 @@ def _dashboard_html() -> str:
       border: 1px solid var(--border);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
-      padding: 14px;
+      padding: 16px;
       transition: opacity 180ms ease, transform 180ms ease;
       opacity: 0.98;
     }
@@ -736,34 +736,40 @@ def _dashboard_html() -> str:
       border: 1px solid var(--border);
       border-radius: 12px;
       background: #fcfaf6;
-      padding: 10px;
-      height: 280px;
+      padding: 14px;
+      height: 380px;
       overflow-y: auto;
       overflow-x: hidden;
-      display: grid;
-      gap: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
     .chat-msg {
-      border: 1px solid var(--border);
-      background: #fff;
-      border-radius: 10px;
-      padding: 8px 10px;
       min-width: 0;
+      max-width: 88%;
+      width: fit-content;
+      border-radius: 16px;
+      padding: 10px 13px;
+      border: 1px solid transparent;
+      background: transparent;
     }
     .chat-msg.user {
       background: var(--accent-soft);
       border-color: #cfddd7;
+      align-self: flex-end;
+      border-bottom-right-radius: 6px;
     }
-    .chat-role {
-      font-size: 11px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 4px;
-      font-weight: 600;
+    .chat-msg.assistant {
+      align-self: flex-start;
+      max-width: 92%;
+      padding: 0;
+      border: 0;
+      background: transparent;
     }
     .chat-text {
-      font-size: 14px;
+      font-size: 15px;
+      line-height: 1.6;
+      font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
       color: #2e2a25;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
@@ -1330,8 +1336,7 @@ def _dashboard_html() -> str:
                   <div id="chat-thread" className="chat-thread">
                     {chatHistory.length === 0 ? <div className="chat-empty">Ask a question to start the conversation.</div> : null}
                     {chatHistory.map((m) => (
-                      <div key={m.id} className={`chat-msg ${m.role === "user" ? "user" : ""}`}>
-                        <div className="chat-role">{m.role === "user" ? "You" : "Assistant"}</div>
+                      <div key={m.id} className={`chat-msg ${m.role === "user" ? "user" : "assistant"}`}>
                         <div className="chat-text">{m.text}</div>
                         {m.role !== "user" && showReasoning && m.reasoning ? (
                           <pre style={{ marginTop: 8 }}>
@@ -1342,8 +1347,7 @@ ${m.reasoning}`}
                       </div>
                     ))}
                     {asking ? (
-                      <div className="chat-msg">
-                        <div className="chat-role">Assistant</div>
+                      <div className="chat-msg assistant">
                         <div className="chat-text">Thinking...</div>
                       </div>
                     ) : null}
