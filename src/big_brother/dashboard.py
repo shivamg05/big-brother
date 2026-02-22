@@ -627,7 +627,7 @@ def _dashboard_html() -> str:
       cursor: pointer;
     }
     .btn:hover, .btn-outline:hover, .card:hover {
-      transform: translateY(-1px);
+      transform: none;
     }
     .log {
       margin-top: 12px;
@@ -802,6 +802,37 @@ def _dashboard_html() -> str:
       overflow-wrap: anywhere;
       word-break: break-word;
     }
+    .chat-text.markdown-body {
+      white-space: normal;
+    }
+    .chat-text.markdown-body > *:first-child {
+      margin-top: 0;
+    }
+    .chat-text.markdown-body > *:last-child {
+      margin-bottom: 0;
+    }
+    .chat-text.markdown-body p,
+    .chat-text.markdown-body ul,
+    .chat-text.markdown-body ol {
+      margin: 0 0 8px;
+    }
+    .chat-text.markdown-body ul,
+    .chat-text.markdown-body ol {
+      padding-left: 20px;
+    }
+    .chat-text.markdown-body li + li {
+      margin-top: 4px;
+    }
+    .chat-text.markdown-body code {
+      font-family: "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+      font-size: 0.92em;
+      background: #efe7d8;
+      border-radius: 5px;
+      padding: 1px 5px;
+    }
+    .chat-text.markdown-body pre {
+      margin: 8px 0;
+    }
     .chat-empty {
       font-size: 13px;
       color: var(--muted);
@@ -927,6 +958,8 @@ def _dashboard_html() -> str:
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/marked@9.1.6/marked.min.js"></script>
+  <script src="https://unpkg.com/dompurify@3.1.7/dist/purify.min.js"></script>
   <script type="text/babel">
     const { useEffect, useMemo, useRef, useState } = React;
 
@@ -962,6 +995,91 @@ def _dashboard_html() -> str:
       if (parts.length === 0) return "WK";
       if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
       return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
+    }
+
+    function escapeHtml(text) {
+      return String(text || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function fallbackMarkdownToHtml(text) {
+      const raw = String(text || "").replaceAll("\\r\\n", "\\n");
+      const lines = raw.split("\\n");
+      let html = "";
+      let inList = false;
+
+      function closeListIfOpen() {
+        if (inList) {
+          html += "</ul>";
+          inList = false;
+        }
+      }
+
+      function inlineMd(line) {
+        let out = escapeHtml(line);
+        out = out.replace(/`([^`]+)`/g, "<code>$1</code>");
+        out = out.replace(/\\*\\*([^*]+)\\*\\*/g, "<strong>$1</strong>");
+        out = out.replace(/\\*([^*]+)\\*/g, "<em>$1</em>");
+        out = out.replace(/\\[([^\\]]+)\\]\\((https?:\\/\\/[^\\s)]+)\\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+        return out;
+      }
+
+      for (const line of lines) {
+        if (!line.trim()) {
+          closeListIfOpen();
+          continue;
+        }
+        if (/^#{1,6}\\s+/.test(line)) {
+          closeListIfOpen();
+          const level = Math.min(6, line.match(/^#+/)[0].length);
+          html += `<h${level}>${inlineMd(line.replace(/^#{1,6}\\s+/, ""))}</h${level}>`;
+          continue;
+        }
+        if (/^\\s*[-*]\\s+/.test(line)) {
+          if (!inList) {
+            html += "<ul>";
+            inList = true;
+          }
+          html += `<li>${inlineMd(line.replace(/^\\s*[-*]\\s+/, ""))}</li>`;
+          continue;
+        }
+        closeListIfOpen();
+        html += `<p>${inlineMd(line)}</p>`;
+      }
+
+      closeListIfOpen();
+      return html || "<p></p>";
+    }
+
+    function markdownToHtml(text) {
+      const raw = String(text || "");
+      const parseFn = (
+        (window.marked && typeof window.marked.parse === "function" && window.marked.parse) ||
+        (window.marked && window.marked.marked && typeof window.marked.marked.parse === "function" && window.marked.marked.parse) ||
+        (typeof window.marked === "function" && window.marked)
+      );
+      if (parseFn) {
+        const parsed = parseFn(raw, {
+          gfm: true,
+          breaks: true,
+          headerIds: false,
+          mangle: false,
+        });
+        if (window.DOMPurify && typeof window.DOMPurify.sanitize === "function") {
+          return window.DOMPurify.sanitize(parsed);
+        }
+        return parsed;
+      }
+      return fallbackMarkdownToHtml(raw);
+    }
+
+    function MarkdownText({ text }) {
+      const html = useMemo(() => markdownToHtml(text), [text]);
+      return <div className="chat-text markdown-body" dangerouslySetInnerHTML={{ __html: html }} />;
     }
 
     function DistributionCard({ title, dist }) {
@@ -1030,6 +1148,7 @@ def _dashboard_html() -> str:
       const [askInput, setAskInput] = useState("");
       const [askStatus, setAskStatus] = useState("");
       const [asking, setAsking] = useState(false);
+      const [thinkingDots, setThinkingDots] = useState(1);
       const [chatHistory, setChatHistory] = useState([]);
       const [showReasoning, setShowReasoning] = useState(false);
       const [messageId, setMessageId] = useState(1);
@@ -1040,6 +1159,44 @@ def _dashboard_html() -> str:
       const [addingWorker, setAddingWorker] = useState(false);
       const [dragActive, setDragActive] = useState(false);
       const fileInputRef = useRef(null);
+      const typingIntervalsRef = useRef(new Map());
+
+      function clearTypingInterval(id) {
+        const handle = typingIntervalsRef.current.get(id);
+        if (handle) {
+          clearInterval(handle);
+          typingIntervalsRef.current.delete(id);
+        }
+      }
+
+      function clearAllTypingIntervals() {
+        for (const handle of typingIntervalsRef.current.values()) clearInterval(handle);
+        typingIntervalsRef.current.clear();
+      }
+
+      function animateAssistantMessage(id, fullText, reasoning) {
+        clearTypingInterval(id);
+        const target = String(fullText || "");
+        if (!target) {
+          setChatHistory((prev) => prev.map((m) => (
+            m.id === id ? { ...m, text: "", reasoning: reasoning || "", isTyping: false } : m
+          )));
+          return;
+        }
+        let cursor = 0;
+        const handle = setInterval(() => {
+          const remaining = target.length - cursor;
+          const chunk = remaining > 900 ? 8 : remaining > 400 ? 4 : remaining > 180 ? 2 : 1;
+          cursor = Math.min(target.length, cursor + chunk);
+          const nextText = target.slice(0, cursor);
+          const done = cursor >= target.length;
+          setChatHistory((prev) => prev.map((m) => (
+            m.id === id ? { ...m, text: nextText, reasoning: reasoning || "", isTyping: !done } : m
+          )));
+          if (done) clearTypingInterval(id);
+        }, 36);
+        typingIntervalsRef.current.set(id, handle);
+      }
 
       useEffect(() => {
         let alive = true;
@@ -1069,7 +1226,21 @@ def _dashboard_html() -> str:
       useEffect(() => {
         setChatHistory([]);
         setAskStatus("");
+        clearAllTypingIntervals();
       }, [run]);
+
+      useEffect(() => () => clearAllTypingIntervals(), []);
+
+      useEffect(() => {
+        if (!asking) {
+          setThinkingDots(1);
+          return;
+        }
+        const id = setInterval(() => {
+          setThinkingDots((v) => (v % 3) + 1);
+        }, 380);
+        return () => clearInterval(id);
+      }, [asking]);
 
       useEffect(() => {
         let alive = true;
@@ -1119,15 +1290,19 @@ def _dashboard_html() -> str:
             return;
           }
           const assistantId = userMessageId + 2000000;
+          const finalAnswer = data.answer || "No answer generated.";
+          const reasoningTrace = data.reasoning_trace || "";
           setChatHistory((prev) => [
             ...prev,
             {
               id: assistantId,
               role: "assistant",
-              text: data.answer || "No answer generated.",
-              reasoning: data.reasoning_trace || "",
+              text: "",
+              reasoning: reasoningTrace,
+              isTyping: true,
             },
           ]);
+          animateAssistantMessage(assistantId, finalAnswer, reasoningTrace);
           setAskStatus("done");
         } catch (e) {
           const errId = userMessageId + 3000000;
@@ -1364,7 +1539,7 @@ def _dashboard_html() -> str:
                     {chatHistory.length === 0 ? <div className="chat-empty">Ask a question to start the conversation.</div> : null}
                     {chatHistory.map((m) => (
                       <div key={m.id} className={`chat-msg ${m.role === "user" ? "user" : "assistant"}`}>
-                        <div className="chat-text">{m.text}</div>
+                        {m.role === "assistant" ? <MarkdownText text={m.text} /> : <div className="chat-text">{m.text}</div>}
                         {m.role !== "user" && showReasoning && m.reasoning ? (
                           <pre style={{ marginTop: 8 }}>
 {`Reasoning
@@ -1375,7 +1550,7 @@ ${m.reasoning}`}
                     ))}
                     {asking ? (
                       <div className="chat-msg assistant">
-                        <div className="chat-text">Thinking...</div>
+                        <div className="chat-text">{`Thinking${".".repeat(thinkingDots)}`}</div>
                       </div>
                     ) : null}
                   </div>
