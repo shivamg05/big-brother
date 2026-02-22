@@ -678,10 +678,50 @@ def _dashboard_html() -> str:
       align-items: center;
       padding: 3px 9px;
       border-radius: 999px;
-      border: 1px solid #d8d2c8;
-      background: #f7f3ea;
+      border: 1px solid #cfddd7;
+      background: var(--accent-soft);
       font-size: 12px;
+      color: #2f5146;
+      font-weight: 600;
+    }
+    .event-log-controls {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+    }
+    .event-filter-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .event-filter-select {
+      border-radius: 10px;
+      border-color: var(--border);
+      background: var(--surface-2);
       color: #564f45;
+      padding-top: 9px;
+      padding-bottom: 9px;
+    }
+    .event-filter-select.active {
+      border-color: #cfddd7;
+      background: var(--accent-soft);
+      color: #2f5146;
+    }
+    .event-sort-toggle {
+      width: auto;
+      border-radius: 10px;
+      border-color: #cfddd7;
+      background: var(--accent-soft);
+      color: #2f5146;
+      padding: 10px 12px;
+      font-weight: 600;
+    }
+    .event-log-meta {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
     }
     .kv { font-size: 13px; color: #3e3a34; }
     .small { font-size: 12px; color: var(--muted); }
@@ -979,6 +1019,9 @@ def _dashboard_html() -> str:
       .dist { grid-template-columns: 1fr; }
       .item-body { grid-template-columns: 1fr; }
       .item-body img { width: 100%; height: 180px; }
+      .event-log-controls { grid-template-columns: 1fr; }
+      .event-filter-grid { grid-template-columns: 1fr; }
+      .event-sort-toggle { width: 100%; }
     }
   </style>
 </head>
@@ -1180,6 +1223,10 @@ def _dashboard_html() -> str:
       const [thinkingDots, setThinkingDots] = useState(1);
       const [chatHistory, setChatHistory] = useState([]);
       const [showReasoning, setShowReasoning] = useState(false);
+      const [eventPhaseFilter, setEventPhaseFilter] = useState("all");
+      const [eventActionFilter, setEventActionFilter] = useState("all");
+      const [eventToolFilter, setEventToolFilter] = useState("all");
+      const [eventSortOrder, setEventSortOrder] = useState("desc");
       const [messageId, setMessageId] = useState(1);
       const [addWorkerOpen, setAddWorkerOpen] = useState(false);
       const [newWorkerName, setNewWorkerName] = useState("");
@@ -1256,6 +1303,10 @@ def _dashboard_html() -> str:
         setChatHistory([]);
         setAskStatus("");
         clearAllTypingIntervals();
+        setEventPhaseFilter("all");
+        setEventActionFilter("all");
+        setEventToolFilter("all");
+        setEventSortOrder("desc");
       }, [run]);
 
       useEffect(() => () => clearAllTypingIntervals(), []);
@@ -1407,11 +1458,42 @@ def _dashboard_html() -> str:
         }
       }
 
-      const events = useMemo(() => (snapshot?.events || []).slice().reverse(), [snapshot]);
+      const allEvents = snapshot?.events || [];
+      const events = useMemo(() => allEvents.slice().reverse(), [allEvents]);
       const episodes = useMemo(() => (snapshot?.labeled_episodes || []).slice().reverse(), [snapshot]);
       const phaseDist = snapshot?.distributions?.phase || {};
       const actionDist = snapshot?.distributions?.action || {};
       const toolDist = snapshot?.distributions?.tool || {};
+
+      const eventPhaseOptions = useMemo(() => (
+        Array.from(new Set(allEvents.map((e) => String(e.phase || "unknown"))))
+          .sort((a, b) => a.localeCompare(b))
+      ), [allEvents]);
+      const eventActionOptions = useMemo(() => (
+        Array.from(new Set(allEvents.map((e) => String(e.action || "unknown"))))
+          .sort((a, b) => a.localeCompare(b))
+      ), [allEvents]);
+      const eventToolOptions = useMemo(() => (
+        Array.from(new Set(allEvents.map((e) => String(e.tool || "unknown"))))
+          .sort((a, b) => a.localeCompare(b))
+      ), [allEvents]);
+      const filteredEventLog = useMemo(() => {
+        const rows = allEvents.filter((e) => {
+          const phase = String(e.phase || "unknown");
+          const action = String(e.action || "unknown");
+          const tool = String(e.tool || "unknown");
+          if (eventPhaseFilter !== "all" && phase !== eventPhaseFilter) return false;
+          if (eventActionFilter !== "all" && action !== eventActionFilter) return false;
+          if (eventToolFilter !== "all" && tool !== eventToolFilter) return false;
+          return true;
+        });
+        rows.sort((a, b) => {
+          const ta = Number(a.t_start) || 0;
+          const tb = Number(b.t_start) || 0;
+          return eventSortOrder === "desc" ? tb - ta : ta - tb;
+        });
+        return rows;
+      }, [allEvents, eventPhaseFilter, eventActionFilter, eventToolFilter, eventSortOrder]);
 
       function topEntry(dist, opts = {}) {
         const entries = Object.entries(dist || {});
@@ -1639,9 +1721,32 @@ ${m.reasoning}`}
             {activeTab === "event-log" ? (
               <section className="card">
                 <h2>Event log</h2>
+                <div className="event-log-controls">
+                  <div className="event-filter-grid">
+                    <select className={`select event-filter-select ${eventPhaseFilter !== "all" ? "active" : ""}`} value={eventPhaseFilter} onChange={(e) => setEventPhaseFilter(e.target.value)}>
+                      <option value="all">All phases</option>
+                      {eventPhaseOptions.map((phase) => <option key={phase} value={phase}>{fmtLabel(phase)}</option>)}
+                    </select>
+                    <select className={`select event-filter-select ${eventActionFilter !== "all" ? "active" : ""}`} value={eventActionFilter} onChange={(e) => setEventActionFilter(e.target.value)}>
+                      <option value="all">All actions</option>
+                      {eventActionOptions.map((action) => <option key={action} value={action}>{fmtLabel(action)}</option>)}
+                    </select>
+                    <select className={`select event-filter-select ${eventToolFilter !== "all" ? "active" : ""}`} value={eventToolFilter} onChange={(e) => setEventToolFilter(e.target.value)}>
+                      <option value="all">All tools</option>
+                      {eventToolOptions.map((tool) => <option key={tool} value={tool}>{fmtLabel(tool)}</option>)}
+                    </select>
+                  </div>
+                  <button
+                    className="btn-outline event-sort-toggle"
+                    onClick={() => setEventSortOrder((v) => (v === "desc" ? "asc" : "desc"))}
+                  >
+                    {eventSortOrder === "desc" ? "Newest First" : "Oldest First"}
+                  </button>
+                </div>
+                <div className="event-log-meta">Showing {filteredEventLog.length} of {allEvents.length} events</div>
                 <div className="log">
                   {loadingSnapshot && <><div className="skeleton" /><div className="skeleton" /></>}
-                  {!loadingSnapshot && events.map((e) => <EventCard key={e.event_id} e={e} />)}
+                  {!loadingSnapshot && filteredEventLog.map((e) => <EventCard key={e.event_id} e={e} />)}
                 </div>
               </section>
             ) : null}
