@@ -721,12 +721,16 @@ def _dashboard_html() -> str:
       font-size: 12px;
     }
     .episodes-timeline-card {
+      position: relative;
       margin-top: 10px;
       border: 1px solid var(--accent);
       border-radius: 12px;
       background: #fff;
-      padding: 14px;
-      overflow-x: hidden;
+      padding: 14px 14px 12px;
+      overflow: hidden;
+    }
+    .episodes-timeline-viewport {
+      overflow-x: auto;
       overflow-y: visible;
     }
     .episodes-empty {
@@ -758,6 +762,7 @@ def _dashboard_html() -> str:
       background: #b8d2c7;
       border: 1px solid #9ebfac;
       z-index: 1;
+      transition: left 220ms ease, width 220ms ease, background 180ms ease, border-color 180ms ease;
     }
     .episodes-duration.active {
       background: var(--accent);
@@ -768,6 +773,7 @@ def _dashboard_html() -> str:
       top: 50%;
       transform: translateX(-50%);
       z-index: 2;
+      transition: left 220ms ease;
     }
     .episodes-dot {
       position: absolute;
@@ -833,6 +839,39 @@ def _dashboard_html() -> str:
       color: #4c6a5f;
       font-size: 12px;
       margin-bottom: 8px;
+    }
+    .episodes-zoom-controls {
+      margin-top: 8px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+    .episodes-zoom-btn {
+      width: 34px;
+      min-width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      font-size: 18px;
+      line-height: 1;
+      font-weight: 700;
+    }
+    .episodes-zoom-btn.zoom-out:disabled {
+      background: #d8d1c2;
+      border-color: #c7bead;
+      color: #6f685d;
+      opacity: 1;
+      cursor: not-allowed;
+    }
+    .episodes-zoom-btn.zoom-in:disabled {
+      background: #d8d1c2;
+      border-color: #c7bead;
+      color: #6f685d;
+      opacity: 1;
+      cursor: not-allowed;
     }
     .kv { font-size: 13px; color: #3e3a34; }
     .small { font-size: 12px; color: var(--muted); }
@@ -1167,7 +1206,7 @@ def _dashboard_html() -> str:
   <script src="https://unpkg.com/marked@9.1.6/marked.min.js"></script>
   <script src="https://unpkg.com/dompurify@3.1.7/dist/purify.min.js"></script>
   <script type="text/babel">
-    const { useEffect, useMemo, useRef, useState } = React;
+    const { useEffect, useLayoutEffect, useMemo, useRef, useState } = React;
 
     function fmtTime(seconds) {
       const total = Math.max(0, Math.floor(Number(seconds) || 0));
@@ -1370,6 +1409,8 @@ def _dashboard_html() -> str:
       const [eventToolFilter, setEventToolFilter] = useState("all");
       const [eventSortOrder, setEventSortOrder] = useState("desc");
       const [selectedEpisodeId, setSelectedEpisodeId] = useState("");
+      const [episodeZoom, setEpisodeZoom] = useState(1);
+      const [timelineViewportWidth, setTimelineViewportWidth] = useState(760);
       const [messageId, setMessageId] = useState(1);
       const [addWorkerOpen, setAddWorkerOpen] = useState(false);
       const [newWorkerName, setNewWorkerName] = useState("");
@@ -1379,7 +1420,11 @@ def _dashboard_html() -> str:
       const [dragActive, setDragActive] = useState(false);
       const fileInputRef = useRef(null);
       const askInputRef = useRef(null);
+      const episodesViewportRef = useRef(null);
+      const episodesTimelineRef = useRef(null);
       const typingIntervalsRef = useRef(new Map());
+      const pendingCenterTimeRef = useRef(null);
+      const zoomAnimRafRef = useRef(0);
 
       function clearTypingInterval(id) {
         const handle = typingIntervalsRef.current.get(id);
@@ -1474,6 +1519,7 @@ def _dashboard_html() -> str:
         setEventToolFilter("all");
         setEventSortOrder("desc");
         setSelectedEpisodeId("");
+        setEpisodeZoom(1);
         injectGreeting();
       }, [run]);
 
@@ -1717,7 +1763,99 @@ def _dashboard_html() -> str:
       const timelineStart = episodesChrono.length > 0 ? (Number(episodesChrono[0]?.t_start) || 0) : 0;
       const timelineEnd = episodesChrono.length > 0 ? (Number(episodesChrono[episodesChrono.length - 1]?.t_end) || timelineStart) : 0;
       const timelineSpan = Math.max(1, timelineEnd - timelineStart);
+      const episodeTimelineWidth = Math.max(320, Math.round(timelineViewportWidth * episodeZoom));
       const selectedEpisode = episodesChrono.find((ep) => String(ep.episode_id || "") === selectedEpisodeId) || null;
+      const canZoomOutEpisodes = episodeZoom > 1.001;
+      const canZoomInEpisodes = episodeZoom < 8;
+      const EPISODE_ZOOM_STEP = 0.8;
+
+      function clamp(num, min, max) {
+        return Math.max(min, Math.min(max, num));
+      }
+
+      function centerTimelineOnTime(timeValue, widthPx = null, behavior = "auto") {
+        const node = episodesViewportRef.current;
+        if (!node || !Number.isFinite(timeValue)) return;
+        const resolvedWidth = widthPx || episodesTimelineRef.current?.offsetWidth || episodeTimelineWidth;
+        const ratio = clamp((timeValue - timelineStart) / timelineSpan, 0, 1);
+        const centerX = ratio * resolvedWidth;
+        const maxScroll = Math.max(0, resolvedWidth - node.clientWidth);
+        const nextScroll = clamp(centerX - (node.clientWidth / 2), 0, maxScroll);
+        if (typeof node.scrollTo === "function") {
+          node.scrollTo({ left: nextScroll, behavior });
+        } else {
+          node.scrollLeft = nextScroll;
+        }
+      }
+
+      function currentCenteredTime() {
+        const node = episodesViewportRef.current;
+        if (!node) return timelineStart + (timelineSpan / 2);
+        const centerX = node.scrollLeft + (node.clientWidth / 2);
+        const ratio = clamp(centerX / Math.max(1, episodeTimelineWidth), 0, 1);
+        return timelineStart + (ratio * timelineSpan);
+      }
+
+      function zoomEpisodes(multiplier) {
+        const fromZoom = episodeZoom;
+        const toZoom = clamp(Number((fromZoom * multiplier).toFixed(3)), 1, 8);
+        if (toZoom === fromZoom) return;
+        const centerTime = currentCenteredTime();
+        pendingCenterTimeRef.current = centerTime;
+        if (zoomAnimRafRef.current) cancelAnimationFrame(zoomAnimRafRef.current);
+        const startedAt = (typeof performance !== "undefined" ? performance.now() : Date.now());
+        const durationMs = 260;
+        const step = () => {
+          const now = (typeof performance !== "undefined" ? performance.now() : Date.now());
+          const t = clamp((now - startedAt) / durationMs, 0, 1);
+          const eased = 1 - Math.pow(1 - t, 3);
+          const z = fromZoom + ((toZoom - fromZoom) * eased);
+          setEpisodeZoom(z);
+          if (t < 1) {
+            zoomAnimRafRef.current = requestAnimationFrame(step);
+            return;
+          }
+          setEpisodeZoom(toZoom);
+          pendingCenterTimeRef.current = null;
+          zoomAnimRafRef.current = 0;
+        };
+        zoomAnimRafRef.current = requestAnimationFrame(step);
+      }
+
+      function zoomOutEpisodes() {
+        zoomEpisodes(EPISODE_ZOOM_STEP);
+      }
+
+      function zoomInEpisodes() {
+        zoomEpisodes(1 / EPISODE_ZOOM_STEP);
+      }
+
+      useEffect(() => {
+        const node = episodesViewportRef.current;
+        if (!node) return;
+        const update = () => setTimelineViewportWidth(Math.max(320, node.clientWidth || 760));
+        update();
+        let ro = null;
+        if (typeof window !== "undefined" && window.ResizeObserver) {
+          ro = new window.ResizeObserver(update);
+          ro.observe(node);
+        } else {
+          window.addEventListener("resize", update);
+        }
+        return () => {
+          if (ro) ro.disconnect();
+          else window.removeEventListener("resize", update);
+        };
+      }, [activeTab, episodesChrono.length]);
+
+      useLayoutEffect(() => {
+        if (pendingCenterTimeRef.current == null) return;
+        centerTimelineOnTime(pendingCenterTimeRef.current, null, "auto");
+      }, [episodeZoom, episodeTimelineWidth, timelineStart, timelineSpan]);
+
+      useEffect(() => () => {
+        if (zoomAnimRafRef.current) cancelAnimationFrame(zoomAnimRafRef.current);
+      }, []);
 
       const navItems = [
         { key: "dashboard", label: "Dashboard" },
@@ -1948,37 +2086,62 @@ ${m.reasoning}`}
                       <div className="episodes-empty">No episodes available yet.</div>
                     ) : (
                       <>
-                        <div
-                          className="episodes-timeline"
-                          style={{ minWidth: "100%", width: "100%" }}
-                        >
-                          <div className="episodes-line" />
-                          {episodesChrono.map((ep, idx) => {
-                            const epId = String(ep.episode_id || "");
-                            const left = ((Math.max(timelineStart, Number(ep.t_start) || timelineStart) - timelineStart) / timelineSpan) * 100;
-                            const width = (Math.max(0, (Number(ep.t_end) || 0) - (Number(ep.t_start) || 0)) / timelineSpan) * 100;
-                            const midpoint = (((Number(ep.t_start) || 0) + (Number(ep.t_end) || 0)) / 2.0 - timelineStart) / timelineSpan * 100;
-                            const isActive = selectedEpisodeId === epId;
-                            return (
-                              <React.Fragment key={`${epId}-${ep.kind || "k"}`}>
-                                <div
-                                  className={`episodes-duration ${isActive ? "active" : ""}`}
-                                  style={{ left: `${left}%`, width: `${Math.max(1.4, width)}%` }}
-                                  title={`${fmtTime(ep.t_start)} → ${fmtTime(ep.t_end)}`}
-                                />
-                                <div className={`episodes-node ${idx % 2 === 0 ? "dot-top" : "dot-bottom"}`} style={{ left: `${Math.min(98, Math.max(2, midpoint))}%` }}>
-                                  <button
-                                    className={`episodes-label ${isActive ? "active" : ""}`}
-                                    onClick={() => setSelectedEpisodeId((prev) => (prev === epId ? "" : epId))}
-                                    title={fmtLabel(ep.label)}
-                                  >
-                                    {fmtLabel(ep.label)}
-                                  </button>
-                                  <span className="episodes-dot" />
-                                </div>
-                              </React.Fragment>
-                            );
-                          })}
+                        <div className="episodes-timeline-viewport" ref={episodesViewportRef}>
+                          <div
+                            className="episodes-timeline"
+                            ref={episodesTimelineRef}
+                            style={{ minWidth: `${episodeTimelineWidth}px`, width: `${episodeTimelineWidth}px` }}
+                          >
+                            <div className="episodes-line" />
+                            {episodesChrono.map((ep, idx) => {
+                              const epId = String(ep.episode_id || "");
+                              const left = ((Math.max(timelineStart, Number(ep.t_start) || timelineStart) - timelineStart) / timelineSpan) * 100;
+                              const width = (Math.max(0, (Number(ep.t_end) || 0) - (Number(ep.t_start) || 0)) / timelineSpan) * 100;
+                              const midpoint = (((Number(ep.t_start) || 0) + (Number(ep.t_end) || 0)) / 2.0 - timelineStart) / timelineSpan * 100;
+                              const isActive = selectedEpisodeId === epId;
+                              return (
+                                <React.Fragment key={`${epId}-${ep.kind || "k"}`}>
+                                  <div
+                                    className={`episodes-duration ${isActive ? "active" : ""}`}
+                                    style={{ left: `${left}%`, width: `${Math.max(1.4, width)}%` }}
+                                    title={`${fmtTime(ep.t_start)} → ${fmtTime(ep.t_end)}`}
+                                  />
+                                  <div className={`episodes-node ${idx % 2 === 0 ? "dot-top" : "dot-bottom"}`} style={{ left: `${Math.min(98, Math.max(2, midpoint))}%` }}>
+                                    <button
+                                      className={`episodes-label ${isActive ? "active" : ""}`}
+                                      onClick={() => {
+                                        const midpointTime = ((Number(ep.t_start) || 0) + (Number(ep.t_end) || 0)) / 2.0;
+                                        setSelectedEpisodeId((prev) => (prev === epId ? "" : epId));
+                                        centerTimelineOnTime(midpointTime, null, "smooth");
+                                      }}
+                                      title={fmtLabel(ep.label)}
+                                    >
+                                      {fmtLabel(ep.label)}
+                                    </button>
+                                    <span className="episodes-dot" />
+                                  </div>
+                                </React.Fragment>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div className="episodes-zoom-controls">
+                          <button
+                            className="btn-outline episodes-zoom-btn zoom-out"
+                            onClick={zoomOutEpisodes}
+                            disabled={!canZoomOutEpisodes}
+                            title="Zoom out"
+                          >
+                            −
+                          </button>
+                          <button
+                            className="btn-outline episodes-zoom-btn zoom-in"
+                            onClick={zoomInEpisodes}
+                            disabled={!canZoomInEpisodes}
+                            title="Zoom in"
+                          >
+                            +
+                          </button>
                         </div>
                         {selectedEpisode ? (
                           <div className="episode-detail-pane">
