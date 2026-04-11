@@ -1,0 +1,2 @@
+SELECT t_start, t_end, (t_end - t_start) AS duration_seconds, action, phase, tool, materials, location_hint FROM Events WHERE worker_id = 'manas_erramilli' AND action IN ('walk', 'carry') ORDER BY t_start LIMIT 200;
+SELECT tool, (t_end - t_start) AS duration_seconds FROM Events WHERE worker_id = 'manas_erramilli' AND tool IS NOT NULL AND tool != 'none' AND tool != 'unknown' ORDER BY duration_seconds DESC LIMIT 1;
