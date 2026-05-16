@@ -1,7 +1,11 @@
-.venv/
-.uv-cache/
-__pycache__/
+**/.DS_Store
 *.py[cod]
+.DS_Store
 .env
-videos/
+.uv-cache/
+.venv/
+__pycache__/
+architecture.md
 imgs/
+notes.md
+videos/
